@@ -1,0 +1,82 @@
+[package]
+name = "progressive-state-transfer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = "*"
+regex = "1"
+intmap = "2.0.0"
+rand = "*"
+rustls = "0.21.0"
+rustls-pemfile = "1.0.2"
+futures = "0.3"
+oneshot = "0.1"
+num_cpus = "1"
+futures-timer = "3"
+rand_core = "0.6"
+capnp = "0.16.0"
+konst = "0.3.4"
+nolock = "0.3"
+chrono = "0.4"
+mimalloc = { version = "*", default-features = false }
+fastrand = "1.7.0"
+semaphores = { version = "0.1.2", git = "https://github.com/nuno1212s/Semaphores" }
+log = "0.4.19"
+anyhow = "1.0.72"
+log4rs = {version =  "1.2.0", features = ["all_components"] }
+bincode = "1.0.0"
+mprober-lib = "0.1.7"
+procinfo = "0.4.2"
+blake3 = "*"
+
+atlas-common = { path = "../Atlas/Atlas-Common" }
+atlas-communication = { path = "../Atlas/Atlas-Communication" }
+atlas-smr-application = { path = "../Atlas/Atlas-SMR-Application" }
+atlas-core = { path = "../Atlas/Atlas-Core" }
+atlas-smr-replica = { path = "../Atlas/Atlas-SMR-Replica" }
+atlas-client = { path = "../Atlas/Atlas-Client" }
+atlas-metrics = { path = "../Atlas/Atlas-Metrics" }
+atlas-persistent-log = { path = "../Atlas/Atlas-Persistent-Log" }
+atlas-log-transfer = { path = "../Atlas/Atlas-Log-Transfer"}
+atlas-decision-log = { path = "../Atlas/Atlas-Decision-Log", features = ["serialize_serde"]}
+atlas-smr-execution = { path = "../Atlas/Atlas-SMR-Execution" }
+atlas-view-transfer = { path = "../Atlas/Atlas-View-Transfer"}
+atlas-reconfiguration = { path = "../Atlas/Atlas-Reconfiguration" }
+atlas-divisible-state = { path = "../Atlas/Atlas-Divisible-State"}
+
+[dependencies.febft-pbft-consensus]
+path = "../febft/febft-pbft-consensus"
+features = ["serialize_serde"]
+#git = "https://github.com/nuno1212s/febft.git"
+#rev = "54e38aef8194302c6fcaa8a3d8d0a2d00727f518"
+#default-features = false
+#features = [
+#    "expose_impl",
+#    "async_runtime_tokio",
+#    "threadpool_rayon",
+#    "serialize_serde",
+#    "socket_tokio_tcp",
+#    "channel_flume_mpmc",
+#    "channel_sync_crossbeam",
+#    "channel_mixed_flume",
+#    "channel_mult_custom_dump",
+#    "crypto_signature_ring_ed25519",
+#    "crypto_hash_blake3_blake3",
+#    "collections_randomstate_fxhash"
+#]
+
+[build-dependencies.capnpc]
+version = "0.16.2"
+
+[profile.release]
+opt-level = 3
+panic = "abort"
+overflow-checks = false
+codegen-units = 16
+lto = true
+debug = false
+debug-assertions = false
+incremental = false
