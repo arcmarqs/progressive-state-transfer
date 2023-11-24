@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = "*"
+serde = { version = "*", features = ["derive"]}
 regex = "1"
 intmap = "2.0.0"
 rand = "*"
@@ -32,19 +32,19 @@ mprober-lib = "0.1.7"
 procinfo = "0.4.2"
 blake3 = "*"
 
-atlas-common = { path = "../Atlas/Atlas-Common" }
-atlas-communication = { path = "../Atlas/Atlas-Communication" }
-atlas-smr-application = { path = "../Atlas/Atlas-SMR-Application" }
-atlas-core = { path = "../Atlas/Atlas-Core" }
-atlas-smr-replica = { path = "../Atlas/Atlas-SMR-Replica" }
-atlas-client = { path = "../Atlas/Atlas-Client" }
+atlas-common = { path = "../Atlas/Atlas-Common", features = ["serialize_serde"]}
+atlas-communication = { path = "../Atlas/Atlas-Communication", features = ["serialize_serde"]}
+atlas-smr-application = { path = "../Atlas/Atlas-SMR-Application", features = ["serialize_serde"]}
+atlas-core = { path = "../Atlas/Atlas-Core", features = ["serialize_serde"]}
+atlas-smr-replica = { path = "../Atlas/Atlas-SMR-Replica", features = ["serialize_serde"]}
+atlas-client = { path = "../Atlas/Atlas-Client", features = ["serialize_serde"]}
 atlas-metrics = { path = "../Atlas/Atlas-Metrics" }
-atlas-persistent-log = { path = "../Atlas/Atlas-Persistent-Log" }
-atlas-log-transfer = { path = "../Atlas/Atlas-Log-Transfer"}
+atlas-persistent-log = { path = "../Atlas/Atlas-Persistent-Log", features = ["serialize_serde"]}
+atlas-log-transfer = { path = "../Atlas/Atlas-Log-Transfer", features = ["serialize_serde"]}
 atlas-decision-log = { path = "../Atlas/Atlas-Decision-Log", features = ["serialize_serde"]}
-atlas-smr-execution = { path = "../Atlas/Atlas-SMR-Execution" }
-atlas-view-transfer = { path = "../Atlas/Atlas-View-Transfer"}
-atlas-reconfiguration = { path = "../Atlas/Atlas-Reconfiguration" }
+atlas-smr-execution = { path = "../Atlas/Atlas-SMR-Execution"}
+atlas-view-transfer = { path = "../Atlas/Atlas-View-Transfer", features = ["serialize_serde"]}
+atlas-reconfiguration = { path = "../Atlas/Atlas-Reconfiguration", features = ["serialize_serde"]}
 atlas-divisible-state = { path = "../Atlas/Atlas-Divisible-State"}
 
 [dependencies.febft-pbft-consensus]

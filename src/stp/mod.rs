@@ -1,6 +1,7 @@
 #![feature(inherent_associated_types)]
 
 use core::fmt;
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter, Binary};
 use std::fs::{self, OpenOptions};
@@ -12,16 +13,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use atlas_common::channel::ChannelSyncTx;
+use atlas_common::maybe_vec::MaybeVec;
 use atlas_common::persistentdb::KVDB;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
 use atlas_divisible_state::state_tree::{LeafNode, StateTree};
 use atlas_divisible_state::SerializedTree;
-use atlas_execution::state::divisible_state::{
-    DivisibleState, DivisibleStateDescriptor, InstallStateMessage, PartDescription, PartId,
-    StatePart,
-};
+
+use atlas_smr_application::state::divisible_state::{DivisibleState, InstallStateMessage, DivisibleStateDescriptor, PartId, StatePart};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
@@ -344,7 +344,7 @@ where
     base_timeout: Duration,
     curr_timeout: Duration,
     timeouts: Timeouts,
-
+    new_descriptor: Option<S::StateDescriptor>,
     node: Arc<NT>,
     phase: ProtoPhase<S>,
     received_state_ids: BTreeMap<(SeqNo,Digest), Vec<NodeId>>,
@@ -383,7 +383,7 @@ macro_rules! getmessage {
 
 impl<S, NT, PL> StateTransferProtocol<S, NT, PL> for BtStateTransfer<S, NT, PL>
 where
-    S: DivisibleState + 'static + Send + Clone + for<'a> Deserialize<'a> + Serialize,
+    S: DivisibleState + 'static + Clone + for<'a> Deserialize<'a> + Serialize,
     PL: DivisibleStateLog<S> + 'static,
     NT: StateTransferSendNode<STMsg<S>> + 'static,
 {
@@ -401,14 +401,13 @@ where
     fn handle_off_ctx_message<V>(
         &mut self,
         view: V,
-        message: StoredMessage<StateTransfer<CstM<Self::Serialization>>>,
+        message: StoredMessage<StMessage<S>>,
     ) -> Result<()>
     where
         V: NetworkView,
     {
-        let (header, inner_message) = message.into_inner();
-        let kind = inner_message.kind().clone();
-        let st_message = inner_message.into_inner();
+        let (header, st_message) = message.into_inner();
+        let kind = st_message.kind().clone();
 
         println!(
             "{:?} // Off context Message {:?} from {:?} with seq {:?}",
@@ -455,14 +454,12 @@ where
     fn process_message<V>(
         &mut self,
         view: V,
-        message: StoredMessage<StateTransfer<CstM<Self::Serialization>>>,
+        message: StoredMessage<StMessage<S>>,
     ) -> Result<STResult>
     where
         V: NetworkView,
     {
         let (header, message) = message.into_inner();
-
-        let message = message.into_inner();
 
         println!(
             "{:?} // Message {:?} from {:?} while in phase {:?}",
@@ -503,16 +500,17 @@ where
             StStatus::ReqLatestCid => self.request_latest_consensus_seq_no(view),
             StStatus::SeqNo(seq) => {
                 return if self.checkpoint.get_seqno() < seq {
-                    println!(
-                        "{:?} // Requesting state descriptor {:?}",
+                    info!(
+                        "{:?} // Current State descriptor {:?}, Requesting state descriptor {:?}",
                         self.node.id(),
+                        self.checkpoint.get_seqno(),
                         seq
                     );
                     metric_duration_start(STATE_TRANSFER_TIME_ID);
                     self.request_state_descriptor(view);
                     Ok(STResult::StateTransferRunning)
                 } else {
-                    println!("{:?} // Not installing sequence number nor requesting state ???? {:?} {:?}", self.node.id(), self.curr_seq, seq);
+                    info!("{:?} // Not installing sequence number nor requesting state ???? {:?} {:?}", self.node.id(), self.checkpoint.seqno, seq);
                     Ok(STResult::StateTransferNotNeeded(seq))
                 }
             }
@@ -552,9 +550,7 @@ where
         Ok(STResult::StateTransferRunning)
     }
 
-    fn handle_app_state_requested<V>(&mut self, view: V, seq: SeqNo) -> Result<ExecutionResult>
-    where
-        V: NetworkView,
+    fn handle_app_state_requested(&mut self, seq: SeqNo) -> Result<ExecutionResult>
     {
        // if self.checkpoint.get_seqno() < seq
         //    || (seq != SeqNo::ZERO && self.checkpoint.descriptor.is_none())
@@ -581,6 +577,10 @@ where
 
         Ok(STTimeoutResult::CstNotNeeded)
     }
+
+    fn poll(&mut self) -> Result<atlas_core::state_transfer::STPollResult<CstM<Self::Serialization>>> {
+        Ok(atlas_core::state_transfer::STPollResult::ReceiveMsg)
+    }
 }
 
 type Ser<ST: StateTransferProtocol<S, NT, PL>, S, NT, PL> =
@@ -589,8 +589,8 @@ type Ser<ST: StateTransferProtocol<S, NT, PL>, S, NT, PL> =
 // TODO: request timeouts
 impl<S, NT, PL> BtStateTransfer<S, NT, PL>
 where
-    S: DivisibleState + 'static + for<'a> Deserialize<'a> + Serialize,
-    PL: DivisibleStateLog<S> + 'static,
+S: DivisibleState + 'static + Clone + for<'a> Deserialize<'a> + Serialize,
+PL: DivisibleStateLog<S> + 'static,
     NT: StateTransferSendNode<STMsg<S>> + 'static,
 {
     /// Create a new instance of `BtStateTransfer`.
@@ -615,6 +615,7 @@ where
             checkpoint: PersistentCheckpoint::new(id),
             //received_state_descriptors: HashMap::default(),
             received_state_ids: BTreeMap::default(),
+            new_descriptor: None,
         }
     }
 
@@ -704,7 +705,7 @@ where
             seq
         );
 
-        self.node.send(reply, header.from(), true).unwrap();
+        self.node.send(reply, header.from(), true);
     }
 
     pub fn request_state_descriptor<V>(&mut self, view: V)
@@ -954,7 +955,7 @@ where
 
                     // reset timeout, since req was successful
                     self.curr_timeout = self.base_timeout;
-
+                    println!("largest cid {:?}", self.largest_cid);
                     //  info!("{:?} // Identified the latest state seq no as {:?} with {} votes.",
                     //          self.node.id(),
                     //          self.largest_cid, self.latest_cid_count);
@@ -989,7 +990,7 @@ where
                         self.curr_timeout = self.base_timeout;
                         self.phase = ProtoPhase::Init;
                         self.received_state_ids.clear();
-
+                        println!("decided on descriptor {:?} {:?}", descriptor.0, descriptor.1.get_digest());
                         return StStatus::StateDescriptor(descriptor.1.clone());
                     }
                 }
@@ -1046,7 +1047,8 @@ where
                         accepted_parts.push(received_part.clone());
                     } else {
                         
-                        println!("invalid part received");
+                        println!("invalid part received {:?} ", Digest::from_bytes(received_part.descriptor().content_description()));
+                        println!("parts {:?} ", self.checkpoint.req_parts.iter().find(|p| p.content_description() == received_part.descriptor().content_description()).is_some());
                     }
                 }
 
@@ -1069,6 +1071,7 @@ where
                     self.checkpoint.targets.clear();
 
                     return if self.checkpoint.req_parts.is_empty() {
+                        println!("state transfer complete seq: {:?}", state.seq);
                         StStatus::StateComplete(state.seq)
                     } else {
                         // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
@@ -1184,7 +1187,7 @@ where
             //println!("state install size {:?}", st_frag.iter().map(|f| f.bytes().len() as u64).sum::<u64>());
 
             self.install_channel
-                .send(InstallStateMessage::StatePart(st_frag.into_boxed_slice()))
+                .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
                 .unwrap();
         }
 
@@ -1218,9 +1221,9 @@ where
 
 impl<S, NT, PL> DivisibleStateTransfer<S, NT, PL> for BtStateTransfer<S, NT, PL>
 where
-    S: DivisibleState + 'static + Send + Clone + for<'a> Deserialize<'a> + Serialize,
+    S: DivisibleState + 'static + Send + Sync + Clone + for<'a> Deserialize<'a> + Serialize,
     PL: DivisibleStateLog<S> + 'static,
-    NT: StateTransferSendNode<STMsg<S>> + 'static,
+    NT: StateTransferSendNode<STMsg<S>> + 'static + Send + Sync,
 {
     type Config = StateTransferConfig;
 
@@ -1244,44 +1247,38 @@ where
         ))
     }
 
-    fn handle_state_received_from_app<V>(
+    fn handle_state_desc_received_from_app(
         &mut self,
-        view: V,
+        descriptor: <S as DivisibleState>::StateDescriptor,
         seq_no: SeqNo,
-        descriptor: S::StateDescriptor,
-        state: Vec<S::StatePart>,
-    ) -> Result<()>
-    where
-        V: NetworkView,
-    {
-        println!(
-            "received state from app, {:?} my seqno {:?} seqno {:?}",
-            descriptor.get_digest(),
-            self.checkpoint.get_seqno(),
-            seq_no
-        );
-
-      //  println!("parts {:?}", descriptor.parts());
+    ) -> Result<()> {
+        println!("receiving checkpoint {:?} {:?}", self.checkpoint.get_seqno() ,seq_no);
 
         if self.checkpoint.get_seqno() < seq_no {
-            self.checkpoint.seqno = seq_no;
-        
-
-            self.checkpoint.write_parts(state.into_boxed_slice())?;
-
-            self.checkpoint.update_descriptor(descriptor);
-
+            println!("receiving checkpoint {:?} {:?}", descriptor.get_digest(), descriptor.sequence_number());
+            self.new_descriptor = Some(descriptor);
         }
-        metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
+        Ok(())
+    }
 
-        if let StStatus::Nil = self.process_message_inner(view, StProgress::Nil) {
-        } else {
-            return Err(
-                "Process message while needing checkpoint returned something else than nil",
-            )
-            .wrapped(ErrorKind::Cst);
+    fn handle_state_part_received_from_app(
+        &mut self,
+        parts: Vec<<S as DivisibleState>::StatePart>,
+    ) -> Result<()> {
+        if !parts.is_empty() {
+            self.checkpoint.write_parts(parts.into_boxed_slice())?;
+        }
+        Ok(())
+    }
+
+    fn handle_state_finished_reception(&mut self, seq_no: SeqNo) -> Result<()> {
+
+        if let Some(desc) = self.new_descriptor.take() {
+            self.checkpoint.seqno = seq_no.next();
+            self.checkpoint.update_descriptor(desc);
         }
 
+        metric_duration_start(CHECKPOINT_UPDATE_TIME_ID);
         Ok(())
     }
 }

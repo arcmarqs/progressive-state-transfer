@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 
 use atlas_divisible_state::state_orchestrator::StateOrchestrator;
-use atlas_execution::state::divisible_state::{AppStateMessage, DivisibleState};
+use atlas_smr_application::state::divisible_state::DivisibleState;
 use serde::{Deserialize, Serialize};
 
 use atlas_common::{ordering::{Orderable, SeqNo}, crypto::hash::Digest};
