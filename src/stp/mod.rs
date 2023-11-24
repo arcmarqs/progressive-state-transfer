@@ -1171,8 +1171,7 @@ PL: DivisibleStateLog<S> + 'static,
             .descriptor()
             .unwrap()
             .parts();
-           
-    
+                        
         for state_desc in descriptor.chunks(INSTALL_CHUNK_SIZE) {
            // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
             let st_frag = self.checkpoint.get_parts_by_ref(state_desc)?;
@@ -1249,7 +1248,7 @@ where
         println!("receiving checkpoint {:?} {:?}", self.checkpoint.get_seqno() ,seq_no);
 
         if self.checkpoint.get_seqno() < seq_no {
-            println!("receiving checkpoint {:?} {:?}", descriptor.get_digest(), descriptor.sequence_number());
+            println!("receiving checkpoint {:?}", descriptor.get_digest());
             self.new_descriptor = Some(descriptor);
         }
         Ok(())
