@@ -2,6 +2,7 @@
 mod capnp;
 
 use std::{marker::PhantomData, sync::Arc};
+use anyhow::Error;
 use atlas_communication::reconfiguration_node::NetworkInformationProvider;
 use atlas_communication::message::Header;
 use atlas_core::state_transfer::networking::serialize::StateTransferMessage;
@@ -29,7 +30,7 @@ impl<S: DivisibleState + for<'a> Deserialize<'a> + Serialize + Send + Sync + Clo
 
     fn verify_state_message<NI, SVH>(network_info: &Arc<NI>,
                                           header: &Header,
-                                          message: Self::StateTransferMessage) -> std::result::Result<StMessage<S>, atlas_common::error::Error>
+                                          message: Self::StateTransferMessage) -> std::result::Result<StMessage<S>, Error>
         where NI: NetworkInformationProvider, SVH: StateTransferVerificationHelper {
             Ok(message)
     }

@@ -11,7 +11,7 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-
+use anyhow::anyhow;
 use atlas_common::channel::ChannelSyncTx;
 use atlas_common::maybe_vec::MaybeVec;
 use atlas_common::persistentdb::KVDB;
@@ -148,7 +148,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         match res {
             Some(buf) => {
                 let res = bincode::deserialize::<S::StatePart>(&buf)
-                    .wrapped(ErrorKind::CommunicationSerialize)
                     .expect("failed to deserialize part");
 
                 Ok(Some(res))
@@ -189,7 +188,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let state_part = match part.expect("invalid part") {
             Some(buf) => {
                 let res = bincode::deserialize::<S::StatePart>(&buf)
-                    .wrapped(ErrorKind::CommunicationSerialize)
                     .expect("failed to deserialize part");
 
                 res
@@ -219,7 +217,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
          let state_part = match part.expect("invalid part") {
              Some(buf) => {
                  let res = bincode::deserialize::<S::StatePart>(&buf)
-                     .wrapped(ErrorKind::CommunicationSerialize)
                      .expect("failed to deserialize part");
  
                  res
@@ -441,11 +438,8 @@ where
         match status {
             StStatus::Nil => (),
             _ => {
-                return Err(format!(
-                    "Invalid state reached while state transfer processing message! {:?}",
-                    status
-                ))
-                .wrapped(ErrorKind::CoreServer)
+                return Err(anyhow!("Invalid state reached while state transfer processing message! {:?}",
+                status))
             }
         }
         Ok(())
