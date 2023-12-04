@@ -1245,10 +1245,13 @@ where
         descriptor: <S as DivisibleState>::StateDescriptor,
         seq_no: SeqNo,
     ) -> Result<()> {
+        info!("receiving checkpoint {:?} {:?}", self.checkpoint.get_seqno() ,seq_no);
         println!("receiving checkpoint {:?} {:?}", self.checkpoint.get_seqno() ,seq_no);
 
         if self.checkpoint.get_seqno() < seq_no {
+            info!("receiving checkpoint {:?}", descriptor.get_digest());
             println!("receiving checkpoint {:?}", descriptor.get_digest());
+
             self.new_descriptor = Some(descriptor);
         }
         Ok(())
@@ -1267,11 +1270,13 @@ where
     fn handle_state_finished_reception(&mut self, seq_no: SeqNo) -> Result<()> {
 
         if let Some(desc) = self.new_descriptor.take() {
+            info!("{:?} // new checkpoint desc{:?}, seqno {:?}",self.node.id(),&desc.get_digest(),seq_no.next());
             self.checkpoint.seqno = seq_no.next();
             self.checkpoint.update_descriptor(desc);
         }
 
         metric_duration_start(CHECKPOINT_UPDATE_TIME_ID);
+
         Ok(())
     }
 }
