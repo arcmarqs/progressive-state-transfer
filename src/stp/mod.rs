@@ -50,7 +50,7 @@ pub mod message;
 pub mod metrics;
 
 //HOW MANY STATE PARTS TO INSTALL AT ONCE
-const INSTALL_CHUNK_SIZE: usize = 512;
+const INSTALL_CHUNK_SIZE: usize = 8192;
 
 const STATE: &'static str = "state";
 
@@ -494,6 +494,7 @@ where
             StStatus::ReqLatestCid => self.request_latest_consensus_seq_no(view),
             StStatus::SeqNo(seq) => {
                 return if self.checkpoint.get_seqno() < seq {
+                    self.curr_seq = seq;
                     info!(
                         "{:?} // Current State descriptor {:?}, Requesting state descriptor {:?}",
                         self.node.id(),
@@ -525,7 +526,7 @@ where
                     ));
                 } else {
                     self.checkpoint.update_descriptor(descriptor);
-
+                    self.checkpoint.seqno = self.curr_seq;
                     self.checkpoint.req_parts = self.checkpoint.get_req_parts();
 
         
@@ -1172,7 +1173,7 @@ PL: DivisibleStateLog<S> + 'static,
             .unwrap()
             .parts();
                         
-        for state_desc in descriptor.chunks(INSTALL_CHUNK_SIZE) {
+        for state_desc in split_evenly(&descriptor, 8) {
            // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
             let st_frag = self.checkpoint.get_parts_by_ref(state_desc)?;
             metric_increment(TOTAL_STATE_INSTALLED_ID, Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()));
@@ -1199,7 +1200,7 @@ PL: DivisibleStateLog<S> + 'static,
         );
         metric_duration_end(STATE_TRANSFER_TIME_ID);
 
-        println!("state transfer finished {:?}", start_install.elapsed());
+        println!("state transfer finished {:?} {:?}", self.checkpoint.get_seqno(),start_install.elapsed());
 
         Ok(STResult::StateTransferFinished(self.checkpoint.get_seqno()))
     }
@@ -1271,7 +1272,7 @@ where
 
         if let Some(desc) = self.new_descriptor.take() {
             info!("{:?} // new checkpoint desc{:?}, seqno {:?}",self.node.id(),&desc.get_digest(),seq_no.next());
-            self.checkpoint.seqno = seq_no.next();
+            self.checkpoint.seqno = seq_no;
             self.checkpoint.update_descriptor(desc);
         }
 
