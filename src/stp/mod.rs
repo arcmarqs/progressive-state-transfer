@@ -162,7 +162,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     fn write_parts(&self,parts: Box<[S::StatePart]>) -> Result<()>{ 
         
         let batch = parts.iter().map(|part| (
-            bincode::serialize(&part.id()).expect("failed to serialize"),
+            bincode::serialize(part.id()).expect("failed to serialize"),
             bincode::serialize(part).unwrap(),
         ));
 
@@ -178,7 +178,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         // need to figure out what to do if the part read doesn't match the descriptor 
   
         let batch = parts_desc.iter().map(|part| (
-           STATE,bincode::serialize(&part.id()).expect("failed to serialize")
+           STATE,bincode::serialize(part.id()).expect("failed to serialize")
         ));
 
         let mut vec = Vec::new();
