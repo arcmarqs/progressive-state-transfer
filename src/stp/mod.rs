@@ -234,7 +234,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let mut parts_to_req = Vec::new();
         for part in  self.descriptor().unwrap().parts().iter() {
             if let Some(local_part) = self.read_local_part(part.id()).expect("failed to read part") {
-                if local_part.hash().as_ref() == part.content_description() {
+                if local_part.hash().as_ref() == part.content_description()  && part.content_description() == local_part.descriptor().content_description() {
                     // We've confirmed that this part is valid so we don't need to request it
                     continue;
                 }
@@ -526,7 +526,7 @@ where
                     ));
                 } else {
                     self.checkpoint.update_descriptor(descriptor);
-                    self.checkpoint.seqno = self.curr_seq;
+                    
                     self.checkpoint.req_parts = self.checkpoint.get_req_parts();
 
         
