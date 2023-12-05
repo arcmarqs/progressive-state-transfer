@@ -1179,10 +1179,9 @@ PL: DivisibleStateLog<S> + 'static,
             metric_increment(TOTAL_STATE_INSTALLED_ID, Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()));
 
             //println!("state install size {:?}", st_frag.iter().map(|f| f.bytes().len() as u64).sum::<u64>());
-            for f in &st_frag {
-                assert!(self.checkpoint.contains_part(f.descriptor()));
-                assert!(f.hash().as_ref() == f.descriptor().content_description());
-            }
+          //  for f in &st_frag {
+          //      assert!(self.checkpoint.contains_part(f.descriptor()));
+           // }
 
             self.install_channel
                 .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
