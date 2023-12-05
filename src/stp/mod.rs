@@ -143,7 +143,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     fn read_local_part(&self, part_id: &[u8]) -> Result<Option<S::StatePart>> {
         let key: Vec<u8> = bincode::serialize(part_id).expect("failed to serialize");
 
-        let res = self.parts.get("state", key)?;
+        let res = self.parts.get(STATE, key)?;
 
         match res {
             Some(buf) => {
@@ -1179,6 +1179,10 @@ PL: DivisibleStateLog<S> + 'static,
             metric_increment(TOTAL_STATE_INSTALLED_ID, Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()));
 
             //println!("state install size {:?}", st_frag.iter().map(|f| f.bytes().len() as u64).sum::<u64>());
+            for f in &st_frag {
+                assert!(self.checkpoint.contains_part(f.descriptor()));
+                assert!(f.hash().as_ref() == f.descriptor().content_description());
+            }
 
             self.install_channel
                 .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
