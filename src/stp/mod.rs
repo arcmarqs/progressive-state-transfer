@@ -213,6 +213,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     let res = bincode::deserialize::<S::StatePart>(&buf)
                         .expect("failed to deserialize part");
 
+                    res
                    /*  if self.contains_part(res.descriptor()).is_some() {
                         res
                     } else {
