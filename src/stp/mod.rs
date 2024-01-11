@@ -44,7 +44,7 @@ pub mod message;
 pub mod metrics;
 
 //HOW MANY STATE PARTS TO INSTALL AT ONCE
-const INSTALL_ITERATIONS: usize = 1;
+const INSTALL_ITERATIONS: usize = 10;
 
 const STATE: &'static str = "state";
 
