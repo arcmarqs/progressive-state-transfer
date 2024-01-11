@@ -213,11 +213,11 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     let res = bincode::deserialize::<S::StatePart>(&buf)
                         .expect("failed to deserialize part");
 
-                    if self.contains_part(res.descriptor()).is_some() {
+                   /*  if self.contains_part(res.descriptor()).is_some() {
                         res
                     } else {
                         continue;
-                    }
+                    }*/
                 }
                 None => continue,
             };
@@ -1202,10 +1202,10 @@ where
             // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
             let st_frag = self.checkpoint.get_parts_by_ref(&state_desc)?;
 
-            metric_increment(
-                TOTAL_STATE_INSTALLED_ID,
-                Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()),
-            );
+        //    metric_increment(
+      //          TOTAL_STATE_INSTALLED_ID,
+      //          Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()),
+       //     );
 
             self.install_channel
                 .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
