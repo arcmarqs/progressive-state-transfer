@@ -7,7 +7,7 @@ use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
 use std::collections::BTreeMap;
-use std::fmt::{ Debug, Formatter};
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -44,7 +44,7 @@ pub mod message;
 pub mod metrics;
 
 //HOW MANY STATE PARTS TO INSTALL AT ONCE
-const INSTALL_ITERATIONS: usize = 8;
+const INSTALL_ITERATIONS: usize = 1;
 
 const STATE: &'static str = "state";
 
@@ -166,7 +166,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn get_parts(&self, parts_desc: &[S::PartDescription]) -> Result<Box<[S::StatePart]>> {
         // need to figure out what to do if the part read doesn't match the descriptor
         let mut vec = Vec::new();
-        
+
         let batch = parts_desc.iter().map(|part| {
             (
                 STATE,
@@ -181,7 +181,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                 Some(buf) => {
                     let res = bincode::deserialize::<S::StatePart>(&buf)
                         .expect("failed to deserialize part");
-                        res                
+                    res
                 }
                 None => continue,
             };
@@ -216,13 +216,13 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     if self.contains_part(res.descriptor()).is_some() {
                         res
                     } else {
-                        continue
+                        continue;
                     }
                 }
                 None => continue,
             };
 
-           // println!("{:?}", self.contains_part(state_part.descriptor()));
+            // println!("{:?}", self.contains_part(state_part.descriptor()));
             vec.push(state_part);
         }
 
@@ -240,7 +240,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     && part.content_description() == local_part.descriptor().content_description()
                 {
                     // We've confirmed that this part is valid so we don't need to request it
-                    
+
                     continue;
                 }
             }
@@ -255,12 +255,16 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         self.req_parts.iter().find(|p| p.as_ref() == part).is_some()
     }
 
-    pub fn contains_part(&self, part: &S::PartDescription) -> Option<Arc<<S as DivisibleState>::PartDescription>> {
+    pub fn contains_part(
+        &self,
+        part: &S::PartDescription,
+    ) -> Option<Arc<<S as DivisibleState>::PartDescription>> {
         self.descriptor()
             .unwrap()
             .parts()
             .iter()
-            .find(|p| p.as_ref() == part).cloned()
+            .find(|p| p.as_ref() == part)
+            .cloned()
     }
 
     pub fn update_descriptor(&mut self, descriptor: S::StateDescriptor) {
@@ -334,7 +338,11 @@ impl<S: DivisibleState> Debug for StStatus<S> {
                 write!(f, "Received seq no {:?}", seq)
             }
             StStatus::StateComplete(seq) => {
-                write!(f, "All parts have been received, can install state {:?}", seq)
+                write!(
+                    f,
+                    "All parts have been received, can install state {:?}",
+                    seq
+                )
             }
             StStatus::RequestStateDescriptor => write!(f, "Request State Descriptor"),
             StStatus::StateDescriptor(_) => write!(f, "Received State Descriptor"),
@@ -1177,9 +1185,11 @@ where
     fn install_state(&mut self) -> Result<STResult> {
         println!("START INSTALL STATE");
         metric_store_count(TOTAL_STATE_INSTALLED_ID, 0);
+
         if self.checkpoint.descriptor().is_none() {
             panic!("No descriptor while installing state");
         }
+
         // divide the state in parts, useful if the state is too large to keep in memory
 
         //descriptor.parts()
@@ -1191,6 +1201,7 @@ where
         for state_desc in split_evenly(&descriptor, INSTALL_ITERATIONS) {
             // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
             let st_frag = self.checkpoint.get_parts_by_ref(&state_desc)?;
+
             metric_increment(
                 TOTAL_STATE_INSTALLED_ID,
                 Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()),
