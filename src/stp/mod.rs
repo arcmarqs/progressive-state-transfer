@@ -1,23 +1,13 @@
-#![feature(inherent_associated_types)]
-
 use anyhow::anyhow;
 use atlas_common::channel::ChannelSyncTx;
+use atlas_common::crypto::hash::Digest;
 use atlas_common::maybe_vec::MaybeVec;
 use atlas_common::persistentdb::KVDB;
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
-use atlas_divisible_state::state_tree::{LeafNode, StateTree};
-use atlas_divisible_state::SerializedTree;
-use core::fmt;
-use std::cell::Cell;
 use std::collections::BTreeMap;
-use std::fmt::{Binary, Debug, Formatter};
-use std::fs::{self, OpenOptions};
-use std::io::{prelude::*, Write};
-use std::mem;
-use std::ops::Deref;
-use std::path::Path;
+use std::fmt::{ Debug, Formatter};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -34,12 +24,10 @@ use crate::stp::metrics::{
     TOTAL_STATE_TRANSFERED_ID,
 };
 use atlas_common::collections::{self, HashMap};
-use atlas_common::crypto::hash::{Digest, Context};
 use atlas_common::error::*;
 use atlas_common::node_id::NodeId;
 use atlas_common::ordering::{Orderable, SeqNo};
 use atlas_communication::message::{Header, StoredMessage};
-use atlas_core::messages::StateTransfer;
 use atlas_core::persistent_log::{DivisibleStateLog, PersistableStateTransferProtocol};
 use atlas_core::state_transfer::divisible_state::*;
 use atlas_core::state_transfer::{CstM, STResult, STTimeoutResult, StateTransferProtocol};
@@ -56,7 +44,7 @@ pub mod message;
 pub mod metrics;
 
 //HOW MANY STATE PARTS TO INSTALL AT ONCE
-const INSTALL_CHUNK_SIZE: usize = 8192;
+const INSTALL_ITERATIONS: usize = 8;
 
 const STATE: &'static str = "state";
 
@@ -178,19 +166,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn get_parts(&self, parts_desc: &[S::PartDescription]) -> Result<Box<[S::StatePart]>> {
         // need to figure out what to do if the part read doesn't match the descriptor
         let mut vec = Vec::new();
-        /*
-        for part in parts_desc {
-            let state_part = match self.read_local_part(part.id()).expect("failed to read part") {
-                Some(res) => {
-                    res
-                }
-                None => continue,
-            };
-            println!("{:?}", self.contains_part(state_part.descriptor()));
-            vec.push(state_part);
-        }
-        */
-
+        
         let batch = parts_desc.iter().map(|part| {
             (
                 STATE,
@@ -222,17 +198,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         // need to figure out what to do if the part read doesn't match the descriptor
 
         let mut vec = Vec::new();
-
-        /*  for part in parts_desc {
-            let state_part = match self.read_local_part(part.id()).expect("failed to read part") {
-                Some(res) => {
-                    res
-                }
-                None => continue,
-            };
-            println!("ref {:?}", self.contains_part(state_part.descriptor()));
-            vec.push(state_part);
-        }*/
 
         let batch = parts_desc.iter().map(|part| {
             (
@@ -368,8 +333,8 @@ impl<S: DivisibleState> Debug for StStatus<S> {
             StStatus::SeqNo(seq) => {
                 write!(f, "Received seq no {:?}", seq)
             }
-            StStatus::StateComplete(SeqNo) => {
-                write!(f, "All parts have been received, can install state")
+            StStatus::StateComplete(seq) => {
+                write!(f, "All parts have been received, can install state {:?}", seq)
             }
             StStatus::RequestStateDescriptor => write!(f, "Request State Descriptor"),
             StStatus::StateDescriptor(_) => write!(f, "Received State Descriptor"),
@@ -586,7 +551,7 @@ where
                     self.request_latest_state_parts(view)?;
                 }
             }
-            StStatus::StateComplete(seq) => {
+            StStatus::StateComplete(_seq) => {
                 return self.install_state();
             }
         }
@@ -594,7 +559,7 @@ where
         Ok(STResult::StateTransferRunning)
     }
 
-    fn handle_app_state_requested(&mut self, seq: SeqNo) -> Result<ExecutionResult> {
+    fn handle_app_state_requested(&mut self, _seq: SeqNo) -> Result<ExecutionResult> {
         // if self.checkpoint.get_seqno() < seq
         //    || (seq != SeqNo::ZERO && self.checkpoint.descriptor.is_none())
         // {
@@ -627,9 +592,6 @@ where
         Ok(atlas_core::state_transfer::STPollResult::ReceiveMsg)
     }
 }
-
-type Ser<ST: StateTransferProtocol<S, NT, PL>, S, NT, PL> =
-    <ST as StateTransferProtocol<S, NT, PL>>::Serialization;
 
 // TODO: request timeouts
 impl<S, NT, PL> BtStateTransfer<S, NT, PL>
@@ -688,7 +650,7 @@ where
                 true
             }
             StStatus::ReqState => {
-                self.request_latest_state(view);
+                let _ = self.request_latest_state(view);
 
                 true
             }
@@ -751,7 +713,7 @@ where
             seq
         );
 
-        self.node.send(reply, header.from(), true);
+        let _ = self.node.send(reply, header.from(), true);
     }
 
     pub fn request_state_descriptor<V>(&mut self, view: V)
@@ -778,7 +740,7 @@ where
             .into_iter()
             .filter(|id| *id != self.node.id());
 
-        self.node.broadcast(message, targets);
+        let _ = self.node.broadcast(message, targets);
     }
     /// Process the entire list of pending state transfer requests
     /// This will only reply to the latest request sent by each of the replicas
@@ -1167,7 +1129,7 @@ where
             .into_iter()
             .filter(|id| *id != self.node.id());
 
-        self.node.broadcast(message, targets);
+        let _ = self.node.broadcast(message, targets);
     }
 
     fn request_latest_state_parts<V>(&mut self, view: V) -> Result<()>
@@ -1226,9 +1188,9 @@ where
 
         let descriptor = self.checkpoint.descriptor().unwrap().parts();
 
-        for state_desc in split_evenly(&descriptor, 8) {
+        for state_desc in split_evenly(&descriptor, INSTALL_ITERATIONS) {
             // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
-            let st_frag = self.checkpoint.get_parts_by_ref(&descriptor)?;
+            let st_frag = self.checkpoint.get_parts_by_ref(&state_desc)?;
             metric_increment(
                 TOTAL_STATE_INSTALLED_ID,
                 Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()),
@@ -1344,7 +1306,7 @@ where
             self.checkpoint.update_descriptor(desc);
         }
 
-        metric_duration_start(CHECKPOINT_UPDATE_TIME_ID);
+        metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
 
         Ok(())
     }
