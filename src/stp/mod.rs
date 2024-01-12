@@ -1065,9 +1065,8 @@ where
                 for received_part in state.st_frag.iter() {
                     metric_increment(TOTAL_STATE_TRANSFERED_ID, Some(received_part.size()));
 
-                    let part_hash = received_part.hash();
+                  //  let part_hash = received_part.hash();
                     if self.checkpoint.requested_part(received_part.descriptor())
-                        && received_part.descriptor().content_description() == part_hash.as_ref()
                     {
                         accepted_descriptor.push(received_part.descriptor().clone());
                         accepted_parts.push(received_part.clone());
