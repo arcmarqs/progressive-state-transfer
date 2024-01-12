@@ -194,11 +194,11 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn get_parts_by_ref(
         &self,
         parts_desc: &[Arc<S::PartDescription>],
-    ) -> Result<Vec<S::StatePart>> {
+    ) -> Result<(Vec<S::StatePart>, u64)> {
         // need to figure out what to do if the part read doesn't match the descriptor
 
         let mut vec = Vec::new();
-
+        let mut size = 0;
         let batch = parts_desc.iter().map(|part| {
             (
                 STATE,
@@ -213,6 +213,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     let res = bincode::deserialize::<S::StatePart>(&buf)
                         .expect("failed to deserialize part");
 
+                    size += res.size() as u64;
                     res
                    /*  if self.contains_part(res.descriptor()).is_some() {
                         res
@@ -227,7 +228,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
             vec.push(state_part);
         }
 
-        Ok(vec)
+        Ok((vec,size))
     }
 
     pub fn get_req_parts(&mut self) -> Vec<Arc<S::PartDescription>> {
@@ -1201,12 +1202,12 @@ where
 
         for state_desc in split_evenly(&descriptor, INSTALL_ITERATIONS) {
             // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
-            let st_frag = self.checkpoint.get_parts_by_ref(&state_desc)?;
+            let (st_frag,size) = self.checkpoint.get_parts_by_ref(&state_desc)?;
 
-        //    metric_increment(
-      //          TOTAL_STATE_INSTALLED_ID,
-      //          Some(st_frag.iter().map(|f| f.size() as u64).sum::<u64>()),
-       //     );
+            metric_increment(
+                TOTAL_STATE_INSTALLED_ID,
+                Some(size),
+            );
 
             self.install_channel
                 .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
