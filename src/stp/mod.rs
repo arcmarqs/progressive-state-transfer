@@ -44,7 +44,7 @@ pub mod message;
 pub mod metrics;
 
 //HOW MANY STATE PARTS TO INSTALL AT ONCE
-const INSTALL_ITERATIONS: usize = 10;
+const INSTALL_ITERATIONS: usize = 1;
 
 const STATE: &'static str = "state";
 
@@ -213,7 +213,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     let res = bincode::deserialize::<S::StatePart>(&buf)
                         .expect("failed to deserialize part");
 
-                    size += res.size() as u64;
+                    size = size + res.size() as u64;
                     res
                    /*  if self.contains_part(res.descriptor()).is_some() {
                         res
