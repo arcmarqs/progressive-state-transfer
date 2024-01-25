@@ -21,7 +21,7 @@ use crate::stp::message::MessageKind;
 use crate::stp::metrics::{
     CHECKPOINT_UPDATE_TIME_ID, PROCESS_REQ_STATE_TIME_ID,
     STATE_TRANSFER_STATE_INSTALL_CLONE_TIME_ID, STATE_TRANSFER_TIME_ID, TOTAL_STATE_INSTALLED_ID,
-    TOTAL_STATE_TRANSFERED_ID,
+    TOTAL_STATE_TRANSFERED_ID,TOTAL_STATE_WAIT_ID
 };
 use atlas_common::collections::{self, HashMap};
 use atlas_common::error::*;
@@ -541,7 +541,7 @@ where
             StStatus::RequestStateDescriptor => self.request_state_descriptor(view),
             StStatus::StateDescriptor(descriptor) => {
                 let my_descriptor = self.checkpoint.descriptor();
-
+                metric_duration_start(TOTAL_STATE_WAIT_ID);
                 if my_descriptor == Some(&descriptor) {
                     self.checkpoint.seqno = self.largest_cid;
                     println!("descriptor is the same, no ST needed");
@@ -561,6 +561,7 @@ where
                 }
             }
             StStatus::StateComplete(_seq) => {
+                metric_duration_end(TOTAL_STATE_WAIT_ID);
                 return self.install_state();
             }
         }
