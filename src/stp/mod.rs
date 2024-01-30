@@ -239,7 +239,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                 .read_local_part(part.id())
                 .expect("failed to read part")
             {
-                if part.content_description() == local_part.descriptor().content_description()
+                if part.content_description() == local_part.hash().as_ref()
                 {
                     // We've confirmed that this part is valid so we don't need to request it
 
