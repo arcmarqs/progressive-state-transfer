@@ -1077,7 +1077,7 @@ where
                     }
                 }
 
-                println!("time to validate part {:?}", time.elapsed());
+                println!("time to validate fragment {:?} number of parts {:?}", time.elapsed(), state.st_frag.len());
 
                 let _ = self
                     .checkpoint
