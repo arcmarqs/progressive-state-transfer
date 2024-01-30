@@ -3,9 +3,11 @@ use atlas_common::channel::ChannelSyncTx;
 use atlas_common::crypto::hash::Digest;
 use atlas_common::maybe_vec::MaybeVec;
 use atlas_common::persistentdb::KVDB;
+use atlas_common::threadpool::{self, ThreadPool};
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
+use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
@@ -365,6 +367,7 @@ where
     new_descriptor: Option<S::StateDescriptor>,
     node: Arc<NT>,
     phase: ProtoPhase<S>,
+    threadpool: Pool,
     received_state_ids: BTreeMap<(SeqNo, Digest), Vec<NodeId>>,
     // received_state_descriptor: HashMap<SeqNo, S::StateDescriptor>,
     install_channel: ChannelSyncTx<InstallStateMessage<S>>,
@@ -618,6 +621,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id().0;
+        let tp = Pool::new(4);
         Self {
             base_timeout,
             curr_timeout: base_timeout,
@@ -632,6 +636,7 @@ where
             //received_state_descriptors: HashMap::default(),
             received_state_ids: BTreeMap::default(),
             new_descriptor: None,
+            threadpool: tp,
         }
     }
 
@@ -1060,7 +1065,7 @@ where
 
                 let mut accepted_descriptor = Vec::new();
                 let mut accepted_parts = Vec::new();
-
+                let time = Instant::now();
                 for received_part in state.st_frag.iter() {
                     metric_increment(TOTAL_STATE_TRANSFERED_ID, Some(received_part.size()));
 
@@ -1071,6 +1076,8 @@ where
                         accepted_parts.push(received_part.clone());
                     }
                 }
+
+                println!("time to validate part {:?}", time.elapsed());
 
                 let _ = self
                     .checkpoint
