@@ -7,6 +7,7 @@ use atlas_common::threadpool::{self, ThreadPool};
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
+use konst::string::split;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
@@ -88,11 +89,11 @@ struct PersistentCheckpoint<S: DivisibleState> {
     // K = pageId V= Length
     parts: KVDB,
     // list of parts we need in order to recover the state
-    req_parts: ConcurrentHashMap<Arc<S::PartDescription>,()>,
+    req_parts: ConcurrentHashMap<Arc<S::PartDescription>, ()>,
 }
 
 impl<S: DivisibleState> Debug for PersistentCheckpoint<S> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PersistentCheckpoint")
             .field("seqno", &self.seqno)
             .field("descriptor", &self.descriptor)
@@ -131,8 +132,19 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         self.descriptor.read().expect("failed to read").clone()
     }
 
+    pub fn descriptor_parts(&self) -> Vec<Arc<S::PartDescription>> {
+        let desc = self.descriptor.read().unwrap();
+        match desc.as_ref() {
+            Some(d) => d.parts().iter().cloned().collect::<Vec<_>>(),
+            None => vec![],
+        }
+    }
+
     pub fn compare_descriptor(&self, other: &Option<S::StateDescriptor>) -> bool {
-        self.descriptor.read().expect("failed to read descriptor").eq(other)
+        self.descriptor
+            .read()
+            .expect("failed to read descriptor")
+            .eq(other)
     }
 
     pub fn get_seqno(&self) -> SeqNo {
@@ -241,22 +253,30 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         Ok((vec, size))
     }
 
-    pub fn get_req_parts(&self) {
-        for part in self.descriptor().unwrap().parts().iter() {
-            if let Some(local_part) = self
-                .read_local_part(part.id())
-                .expect("failed to read part")
-            {
-                if part.content_description() == local_part.hash().as_ref() {
-                    // We've confirmed that this part is valid so we don't need to request it
+    pub fn get_req_parts(&self, pool: &mut Pool) {
+        let desc_parts = self.descriptor_parts();
+        let split = split_evenly(&desc_parts, INSTALL_ITERATIONS);
 
-                    continue;
-                }
-            }
+        pool.scoped(|scope| {
+            split.for_each(|chunk| {
+                scope.execute(|| {
+                    for part in chunk.iter() {
+                        if let Some(local_part) = self
+                            .read_local_part(part.id())
+                            .expect("failed to read part")
+                        {
+                            if part.content_description() == local_part.hash().as_ref() {
+                                // We've confirmed that this part is valid so we don't need to request it
 
-           self.req_parts.insert(part.clone(), ());
-        }
+                                continue;
+                            }
+                        }
 
+                        self.req_parts.insert(part.clone(), ());
+                    }
+                });
+            });
+        });
     }
 
     pub fn requested_part(&self, part: &S::PartDescription) -> bool {
@@ -549,8 +569,10 @@ where
             StStatus::RequestStateDescriptor => self.request_state_descriptor(view),
             StStatus::StateDescriptor(descriptor) => {
                 metric_duration_start(TOTAL_STATE_WAIT_ID);
-                if self.checkpoint.compare_descriptor(&Some(descriptor.clone())) {
-
+                if self
+                    .checkpoint
+                    .compare_descriptor(&Some(descriptor.clone()))
+                {
                     self.checkpoint.update_seqno(self.largest_cid);
                     println!("descriptor is the same, no ST needed");
                     return Ok(STResult::StateTransferNotNeeded(
@@ -559,7 +581,7 @@ where
                 } else {
                     self.checkpoint.update_descriptor(Some(descriptor));
 
-                    self.checkpoint.get_req_parts();
+                    self.checkpoint.get_req_parts(&mut self.threadpool);
 
                     if self.checkpoint.req_parts.is_empty() {
                         return self.install_state();
@@ -1074,8 +1096,6 @@ where
                 let time = Instant::now();
 
                 self.threadpool.scoped(|scope| {
-                   
-
                     frags.for_each(|frag| {
                         scope.execute(|| {
                             let checkpoint_handle = self.checkpoint.clone();
@@ -1096,23 +1116,19 @@ where
                                 }
                             });
 
-                            let _ = checkpoint_handle
-                            .write_parts(accepted_parts.into_boxed_slice());
-            
+                            let _ =
+                                checkpoint_handle.write_parts(accepted_parts.into_boxed_slice());
+
                             if !checkpoint_handle.req_parts.is_empty() {
-                            //remove the parts that we accepted
-                            checkpoint_handle
-                                .req_parts
-                                .retain(|part,_| !accepted_descriptor.contains(part));
-                        }
+                                //remove the parts that we accepted
+                                checkpoint_handle
+                                    .req_parts
+                                    .retain(|part, _| !accepted_descriptor.contains(part));
+                            }
                         });
                     });
-
-                   
-                   
                 });
 
-               
                 println!(
                     "time to validate fragment {:?} number of parts {:?}",
                     time.elapsed(),
@@ -1197,7 +1213,12 @@ where
         // Overloading the replicas
 
         let targets = self.checkpoint.targets.lock().unwrap();
-        let parts_list = self.checkpoint.req_parts.iter().map(|part| part.key().clone()).collect::<Box<_>>();
+        let parts_list = self
+            .checkpoint
+            .req_parts
+            .iter()
+            .map(|part| part.key().clone())
+            .collect::<Box<_>>();
         let parts_map = split_evenly(&parts_list, targets.len()).map(|r| {
             r.into_iter()
                 .map(|part| part.as_ref().clone())
@@ -1233,18 +1254,22 @@ where
 
         let start_install = Instant::now();
 
-        let descriptor = self.checkpoint.descriptor().unwrap().parts();
+        let parts = self.checkpoint.descriptor_parts();
+        let state_frags = split_evenly(&parts, INSTALL_ITERATIONS);
 
-        for state_desc in split_evenly(&descriptor, INSTALL_ITERATIONS) {
-            // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
-            let (st_frag, size) = self.checkpoint.get_parts_by_ref(&state_desc)?;
+        self.threadpool.scoped(|scope| {
+            state_frags.for_each(|frag| {
+                scope.execute(|| {
+                    let (st_frag, size) = self.checkpoint.get_parts_by_ref(frag).unwrap();
 
-            metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
+                    metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
 
-            self.install_channel
-                .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
-                .unwrap();
-        }
+                    self.install_channel
+                        .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
+                        .unwrap();
+                });
+            });
+        });
 
         self.install_channel
             .send(InstallStateMessage::Done)
