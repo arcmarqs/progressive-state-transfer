@@ -252,7 +252,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     pub fn requested_part(&self, part: &S::PartDescription) -> bool {
-        self.req_parts.iter().find(|p| p.as_ref() == part).is_some()
+        self.req_parts.iter().any(|p| p.as_ref() == part)
     }
 
     pub fn contains_part(
