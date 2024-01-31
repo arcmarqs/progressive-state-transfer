@@ -1093,11 +1093,13 @@ where
                 };
 
                 let frags = split_evenly(&state.st_frag, 4);
-                let time = Instant::now();
 
                 self.threadpool.scoped(|scope| {
+                   // let time = Instant::now();
+
                     frags.for_each(|frag| {
                         scope.execute(|| {
+
                             let checkpoint_handle = self.checkpoint.clone();
                             let mut accepted_parts = Vec::new();
                             let mut accepted_descriptor = Vec::new();
@@ -1127,13 +1129,15 @@ where
                             }
                         });
                     });
+
+                /*     println!(
+                        "time to validate fragment {:?} number of parts {:?}",
+                        time.elapsed(),
+                        state.st_frag.len()
+                    );*/
                 });
 
-                println!(
-                    "time to validate fragment {:?} number of parts {:?}",
-                    time.elapsed(),
-                    state.st_frag.len()
-                );
+                
 
                 let i = i + 1;
 
