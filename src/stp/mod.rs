@@ -46,7 +46,7 @@ use self::message::StMessage;
 pub mod message;
 pub mod metrics;
 
-const INSTALL_ITERATIONS: usize = 8;
+const INSTALL_ITERATIONS: usize = 10;
 
 const STATE: &'static str = "state";
 
