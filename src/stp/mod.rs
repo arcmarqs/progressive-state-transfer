@@ -185,9 +185,9 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         Ok(())
     }
 
-    pub fn get_parts(&self, parts_desc: &[S::PartDescription]) -> Result<Box<[S::StatePart]>> {
+    pub fn get_parts(&self, parts_desc: &[S::PartDescription], pool: &mut Pool) -> Result<Box<[S::StatePart]>> {
         // need to figure out what to do if the part read doesn't match the descriptor
-        let mut vec = Vec::new();
+        let vec = Arc::new(Mutex::new(Vec::new()));
 
         let batch = parts_desc.iter().map(|part| {
             (
@@ -196,21 +196,35 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
             )
         });
 
-        let parts = self.parts.get_all(batch).expect("failed to get all parts");
+        let binding = self.parts.get_all(batch).expect("failed to get all parts");
+        let parts = split_evenly(&binding, 4);
 
-        for part in parts {
-            let state_part = match part.expect("invalid part") {
-                Some(buf) => {
-                    let res = bincode::deserialize::<S::StatePart>(&buf)
-                        .expect("failed to deserialize part");
-                    res
-                }
-                None => continue,
-            };
-            vec.push(state_part);
-        }
+        pool.scoped(|scope| {
+            parts.for_each(|chunk| {
+                let vec_handle = vec.clone();
+                scope.execute(move || {
+                    let mut local_vec = Vec::new();
+                    for part in chunk {
+                        let state_part = match part.as_ref().expect("invalid part") {
+                            Some(buf) => {
+                                let res = bincode::deserialize::<S::StatePart>(&buf)
+                                    .expect("failed to deserialize part");
+                                res
+                            }
+                            None => continue,
+                        };
 
-        Ok(vec.into_boxed_slice())
+                        local_vec.push(state_part);
+                    }
+
+                    vec_handle.lock().expect("failed to lock").extend(local_vec.into_iter());
+                });
+            });
+        });
+
+        let unwrapped_vec = Arc::try_unwrap(vec).expect("Lock still has multiple owners");
+
+        Ok(unwrapped_vec.into_inner().expect("failed to extract vec from mutex").into_boxed_slice())
     }
 
     pub fn get_parts_by_ref(
@@ -849,7 +863,7 @@ where
         let st_frag = match message.kind() {
             MessageKind::ReqState(req_parts) => {
                 let parts = req_parts.iter().as_slice();
-                self.checkpoint.get_parts(parts).unwrap()
+                self.checkpoint.get_parts(parts, &mut self.threadpool).unwrap()
             }
             _ => {
                 return;
