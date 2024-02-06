@@ -269,7 +269,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     pub fn get_req_parts(&self, pool: &mut Pool) {
         let desc_parts = self.descriptor_parts();
-        let split = split_evenly(&desc_parts, INSTALL_ITERATIONS);
+        let split = split_evenly(&desc_parts, 4);
 
         pool.scoped(|scope| {
             split.for_each(|chunk| {
