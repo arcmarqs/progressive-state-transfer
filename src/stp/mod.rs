@@ -1106,7 +1106,7 @@ where
                     None => return StStatus::Running,
                 };
 
-                let frags = split_evenly(&state.st_frag, 4);
+                let frags = split_evenly(&state.st_frag, 2);
 
                 self.threadpool.scoped(|scope| {
                    // let time = Instant::now();
