@@ -157,9 +157,8 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     fn read_local_part(&self, part_id: &[u8]) -> Result<Option<S::StatePart>> {
-        let key: Vec<u8> = bincode::serialize(part_id).expect("failed to serialize");
 
-        let res = self.parts.get(STATE, key)?;
+        let res = self.parts.get(STATE, part_id)?;
 
         match res {
             Some(buf) => {
@@ -173,15 +172,18 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
-        let batch = parts.iter().map(|part| {
+        /*  let batch = parts.iter().map(|part| {
             (
-                bincode::serialize(part.id()).expect("failed to serialize"),
+                part.id(),
                 bincode::serialize(part).unwrap(),
             )
         });
 
-        let _ = self.parts.set_all(STATE, batch);
+        let _ = self.parts.set_all(STATE, batch); */
 
+        for part in parts.iter() {
+           let _ = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
+        }
         Ok(())
     }
 
@@ -192,7 +194,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let batch = parts_desc.iter().map(|part| {
             (
                 STATE,
-                bincode::serialize(part.id()).expect("failed to serialize"),
+                part.id(),
             )
         });
 
@@ -238,7 +240,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let batch = parts_desc.iter().map(|part| {
             (
                 STATE,
-                bincode::serialize(part.id()).expect("failed to serialize"),
+                part.id(),
             )
         });
         let parts = self.parts.get_all(batch).expect("failed to get all parts");
