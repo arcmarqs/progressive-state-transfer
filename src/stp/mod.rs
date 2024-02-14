@@ -46,7 +46,7 @@ use self::message::StMessage;
 pub mod message;
 pub mod metrics;
 
-const INSTALL_ITERATIONS: usize = 10;
+const INSTALL_ITERATIONS: usize = 8;
 
 const STATE: &'static str = "state";
 
@@ -661,7 +661,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id().0;
-        let tp = Pool::new(6);
+        let tp = Pool::new(12);
         Self {
             base_timeout,
             curr_timeout: base_timeout,
