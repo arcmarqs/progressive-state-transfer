@@ -1376,7 +1376,7 @@ where
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
         if !parts.is_empty() {
-            let part_split = split_evenly(&parts, INSTALL_ITERATIONS);
+            let part_split = split_evenly(&parts, 4);
             self.threadpool.scoped(|scope| {
                 part_split.for_each(|chunk| {
                     let handle = self.checkpoint.clone();
