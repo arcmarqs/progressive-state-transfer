@@ -118,13 +118,13 @@ impl<S: DivisibleState> Default for PersistentCheckpoint<S> {
 
 impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn new(id: u32) -> Self {
-        let path = format!("{}{}", "checkpoint_", id);
+        let path = format!("PERSISTENT_DB_{:?}", id);
         Self {
             req_parts: ConcurrentHashMap::default(),
             seqno: SeqNo::ZERO.into(),
             descriptor: RwLock::new(None),
             targets: Mutex::new(vec![]),
-            parts: KVDB::new(path, vec![STATE]).unwrap(),
+            parts: KVDB::new(path, vec![STATE]).unwrap()
         }
     }
 
