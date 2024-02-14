@@ -172,18 +172,14 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
-        /*  let batch = parts.iter().map(|part| {
+        let batch = parts.iter().map(|part| {
             (
                 part.id(),
                 bincode::serialize(part).unwrap(),
             )
         });
 
-        let _ = self.parts.set_all(STATE, batch); */
-
-        for part in parts.iter() {
-           let _ = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
-        }
+        let _ = self.parts.set_all(STATE, batch); 
         Ok(())
     }
 
