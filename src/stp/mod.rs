@@ -7,6 +7,7 @@ use atlas_common::threadpool::{self, ThreadPool};
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
+use futures::future::select;
 use konst::string::split;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
@@ -46,7 +47,7 @@ use self::message::StMessage;
 pub mod message;
 pub mod metrics;
 
-const INSTALL_ITERATIONS: usize = 8;
+const INSTALL_ITERATIONS: usize = 12;
 
 const STATE: &'static str = "state";
 
@@ -267,7 +268,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     pub fn get_req_parts(&self, pool: &mut Pool) {
         let desc_parts = self.descriptor_parts();
-        let split = split_evenly(&desc_parts, 4);
+        let split = split_evenly(&desc_parts, 6);
 
         pool.scoped(|scope| {
             split.for_each(|chunk| {
@@ -1375,7 +1376,16 @@ where
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
         if !parts.is_empty() {
-            self.checkpoint.write_parts(parts.into_boxed_slice())?;
+            let part_split = split_evenly(&parts, INSTALL_ITERATIONS);
+            self.threadpool.scoped(|scope| {
+                part_split.for_each(|chunk| {
+                    let handle = self.checkpoint.clone();
+
+                    scope.execute(move || {
+                        handle.write_parts(chunk.into()).unwrap();
+                    })
+                })
+            });
         }
         Ok(())
     }
