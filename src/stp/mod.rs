@@ -795,7 +795,7 @@ where
             .into_iter()
             .filter(|id| *id != self.node.id());
 
-        let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
+        //let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
 
         let _ = self.node.broadcast(message, targets);
     }
@@ -941,7 +941,7 @@ where
                         self.process_request_descriptor(header, message)
                     }
                     MessageKind::ReqState(_) => {
-                        let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
+                       // let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
 
                         self.process_request_state(header, message);
                     }
@@ -1252,7 +1252,7 @@ where
             self.node.send(message, *n, false)?;
         }
 
-        let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
+       // let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
 
         Ok(())
     }
