@@ -795,6 +795,8 @@ where
             .into_iter()
             .filter(|id| *id != self.node.id());
 
+        let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
+
         let _ = self.node.broadcast(message, targets);
     }
     /// Process the entire list of pending state transfer requests
@@ -939,6 +941,8 @@ where
                         self.process_request_descriptor(header, message)
                     }
                     MessageKind::ReqState(_) => {
+                        let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
+
                         self.process_request_state(header, message);
                     }
                     // we are not running cst, so drop any reply msgs
@@ -1247,6 +1251,8 @@ where
 
             self.node.send(message, *n, false)?;
         }
+
+        let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
 
         Ok(())
     }
