@@ -119,7 +119,7 @@ impl<S: DivisibleState> Default for PersistentCheckpoint<S> {
 
 impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn new(id: NodeId) -> Self {
-        let path = format!("PERSISTENT_DB_{:?}", id);
+        let path = format!("checkpoint_{:?}", id);
         Self {
             req_parts: ConcurrentHashMap::default(),
             seqno: SeqNo::ZERO.into(),
