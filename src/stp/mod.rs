@@ -118,7 +118,7 @@ impl<S: DivisibleState> Default for PersistentCheckpoint<S> {
 }
 
 impl<S: DivisibleState> PersistentCheckpoint<S> {
-    pub fn new(id: u32) -> Self {
+    pub fn new(id: NodeId) -> Self {
         let path = format!("PERSISTENT_DB_{:?}", id);
         Self {
             req_parts: ConcurrentHashMap::default(),
@@ -661,7 +661,7 @@ where
         persistent_log: PL,
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
-        let id = node.id().0;
+        let id = node.id();
         let tp = Pool::new(12);
         Self {
             base_timeout,
