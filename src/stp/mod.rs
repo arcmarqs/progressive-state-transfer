@@ -1105,7 +1105,7 @@ where
                     None => return StStatus::Running,
                 };
 
-                let frags = split_evenly(&state.st_frag, 2);
+                let frags = split_evenly(&state.st_frag, 4);
 
                 self.threadpool.scoped(|scope| {
                    // let time = Instant::now();
@@ -1377,7 +1377,7 @@ where
     ) -> Result<()> {
         let time = Instant::now();
         if !parts.is_empty() {
-            let part_split = split_evenly(&parts, 4);
+            let part_split = split_evenly(&parts, 8);
             self.threadpool.scoped(|scope| {
                 part_split.for_each(|chunk| {
                     let handle = self.checkpoint.clone();
