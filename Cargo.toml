@@ -34,7 +34,7 @@ procinfo = "0.4.2"
 blake3 = "*"
 scoped_threadpool = "0.1.9"
 
-atlas-common = { path = "../Atlas/Atlas-Common", features = ["serialize_serde", "persistent_db_rocksdb"]}
+atlas-common = { path = "../Atlas/Atlas-Common", features = ["serialize_serde", "persistent_db_sled"]}
 atlas-communication = { path = "../Atlas/Atlas-Communication", features = ["serialize_serde"]}
 atlas-smr-application = { path = "../Atlas/Atlas-SMR-Application", features = ["serialize_serde"]}
 atlas-core = { path = "../Atlas/Atlas-Core", features = ["serialize_serde"]}
