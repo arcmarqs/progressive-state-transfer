@@ -33,6 +33,7 @@ mprober-lib = "0.1.7"
 procinfo = "0.4.2"
 blake3 = "*"
 scoped_threadpool = "0.1.9"
+concurrent-map = "5.0.33"
 
 atlas-common = { path = "../Atlas/Atlas-Common", features = ["serialize_serde", "persistent_db_sled"]}
 atlas-communication = { path = "../Atlas/Atlas-Communication", features = ["serialize_serde"]}

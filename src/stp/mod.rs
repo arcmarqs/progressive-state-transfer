@@ -7,11 +7,13 @@ use atlas_common::threadpool::{self, ThreadPool};
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
+use concurrent_map::ConcurrentMap;
 use futures::future::select;
 use konst::string::split;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
+use std::os::linux::raw::stat;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -88,7 +90,7 @@ struct PersistentCheckpoint<S: DivisibleState> {
     targets: Mutex<Vec<NodeId>>,
     // used to track the state part's position in the persistent checkpoint
     // K = pageId V= Length
-    parts: KVDB,
+    parts: ConcurrentHashMap<Vec<u8>,S::StatePart>,
     // list of parts we need in order to recover the state
     req_parts: ConcurrentHashMap<Arc<S::PartDescription>, ()>,
 }
@@ -112,7 +114,7 @@ impl<S: DivisibleState> Default for PersistentCheckpoint<S> {
             // parts: Default::default(),
             req_parts: ConcurrentHashMap::default(),
             targets: Mutex::new(vec![]),
-            parts: KVDB::new("checkpoint", vec![STATE]).unwrap(),
+            parts: ConcurrentHashMap::default(),
         }
     }
 }
@@ -125,7 +127,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
             seqno: SeqNo::ZERO.into(),
             descriptor: RwLock::new(None),
             targets: Mutex::new(vec![]),
-            parts: KVDB::new(path, vec![STATE]).unwrap()
+            parts: ConcurrentHashMap::default()
         }
     }
 
@@ -159,28 +161,20 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     fn read_local_part(&self, part_id: &[u8]) -> Result<Option<S::StatePart>> {
 
-        let res = self.parts.get(STATE, part_id)?;
-
-        match res {
-            Some(buf) => {
-                let res =
-                    bincode::deserialize::<S::StatePart>(&buf).expect("failed to deserialize part");
-
-                Ok(Some(res))
-            }
-            None => Ok(None),
+        if let Some(part) = self.parts.get(part_id) {
+            let res = part.value();
+            Ok(Some(res.clone()))
+        } else {
+            Ok(None)
         }
     }
 
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
-        let batch = parts.iter().map(|part| {
-            (
-                part.id(),
-                bincode::serialize(part).unwrap(),
-            )
-        });
 
-        let _ = self.parts.set_all(STATE, batch); 
+        parts.into_iter().for_each(|part| {
+            self.parts.insert(part.id().to_vec(), part.clone());
+        });
+        
         Ok(())
     }
 
@@ -188,32 +182,22 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         // need to figure out what to do if the part read doesn't match the descriptor
         let vec = Arc::new(Mutex::new(Vec::new()));
 
-        let batch = parts_desc.iter().map(|part| {
-            (
-                STATE,
-                part.id(),
-            )
-        });
-
-        let binding = self.parts.get_all(batch).expect("failed to get all parts");
-        let parts = split_evenly(&binding, 4);
+        let keyset = split_evenly(parts_desc, 4);
 
         pool.scoped(|scope| {
-            parts.for_each(|chunk| {
+            keyset.for_each(|chunk| {
                 let vec_handle = vec.clone();
+                //let parts_handle = self.parts.clone();
                 scope.execute(move || {
                     let mut local_vec = Vec::new();
-                    for part in chunk {
-                        let state_part = match part.as_ref().expect("invalid part") {
-                            Some(buf) => {
-                                let res = bincode::deserialize::<S::StatePart>(&buf)
-                                    .expect("failed to deserialize part");
-                                res
-                            }
-                            None => continue,
-                        };
+                    for key in chunk {
+                        if let Some(state_part) = self.parts.get(key.id()) {
+                            let res = state_part.value().clone();
+                            local_vec.push(res);
 
-                        local_vec.push(state_part);
+                        }
+                        
+                        
                     }
 
                     vec_handle.lock().expect("failed to lock").extend(local_vec.into_iter());
@@ -234,33 +218,14 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
         let mut vec = Vec::new();
         let mut size = 0;
-        let batch = parts_desc.iter().map(|part| {
-            (
-                STATE,
-                part.id(),
-            )
-        });
-        let parts = self.parts.get_all(batch).expect("failed to get all parts");
+       
+        for key in parts_desc {
+            if let Some(state_part) = self.parts.get(key.id()) {
+                let res = state_part.value().clone();
+                size = size + res.size();
+                vec.push(res);
 
-        for part in parts {
-            let state_part = match part.expect("invalid part") {
-                Some(buf) => {
-                    let res = bincode::deserialize::<S::StatePart>(&buf)
-                        .expect("failed to deserialize part");
-
-                    size = size + res.size() as u64;
-                    res
-                    /*  if self.contains_part(res.descriptor()).is_some() {
-                        res
-                    } else {
-                        continue;
-                    }*/
-                }
-                None => continue,
-            };
-
-            // println!("{:?}", self.contains_part(state_part.descriptor()));
-            vec.push(state_part);
+            }         
         }
 
         Ok((vec, size))
