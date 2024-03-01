@@ -243,11 +243,11 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                             .read_local_part(part.id())
                             .expect("failed to read part")
                         {
-                            if part.content_description() == local_part.hash().as_ref() {
+                            //if part.content_description() == local_part.hash().as_ref() {
                                 // We've confirmed that this part is valid so we don't need to request it
 
-                                continue;
-                            }
+                            continue;
+                           // }
                         }
 
                         self.req_parts.insert(part.clone(), ());
@@ -1091,9 +1091,7 @@ where
                                     TOTAL_STATE_TRANSFERED_ID,
                                     Some(received_part.size()),
                                 );
-                                if received_part.hash().as_ref()
-                                    == received_part.descriptor().content_description()
-                                    && checkpoint_handle.requested_part(received_part.descriptor())
+                                if checkpoint_handle.requested_part(received_part.descriptor())
                                 {
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     accepted_parts.push(received_part.clone());
