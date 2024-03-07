@@ -1091,8 +1091,10 @@ where
                                     TOTAL_STATE_TRANSFERED_ID,
                                     Some(received_part.size()),
                                 );
-                                if checkpoint_handle.requested_part(received_part.descriptor())
-                                {
+                                if received_part.hash().as_ref()
+                                == received_part.descriptor().content_description()
+                                && checkpoint_handle.requested_part(received_part.descriptor())
+                            {
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     accepted_parts.push(received_part.clone());
                                 }
