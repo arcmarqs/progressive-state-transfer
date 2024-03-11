@@ -1288,6 +1288,7 @@ where
 
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
+                if !frag.is_empty(){
                 scope.execute(|| {
                     let (st_frag, size) = self.checkpoint.get_parts_by_ref(frag).unwrap();
 
@@ -1297,6 +1298,7 @@ where
                         .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
                         .unwrap();
                 });
+                }
             });
         });
 
