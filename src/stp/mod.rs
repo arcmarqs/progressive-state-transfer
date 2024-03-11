@@ -7,8 +7,9 @@ use atlas_common::threadpool::{self, ThreadPool};
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
-use futures::future::select;
+use futures::future::{ok, select};
 use konst::string::split;
+use regex::Replacer;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
@@ -186,6 +187,11 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     pub fn get_parts(&self, parts_desc: &[S::PartDescription], pool: &mut Pool) -> Result<Box<[S::StatePart]>> {
         // need to figure out what to do if the part read doesn't match the descriptor
+
+        if parts_desc.is_empty() {
+           return Ok(Box::new([]));
+        }
+
         let vec = Arc::new(Mutex::new(Vec::new()));
 
         let batch = parts_desc.iter().map(|part| {
