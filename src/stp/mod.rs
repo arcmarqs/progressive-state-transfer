@@ -1138,6 +1138,8 @@ where
                                 {
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     accepted_parts.push(received_part.clone());
+                                } else {
+                                    println!("did not accept part {:?}", received_part.id());
                                 }
                             });
 
@@ -1177,6 +1179,7 @@ where
                     } else {
                         // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
                         // where we assume our state is wrong, therefore out descriptor is wrong
+                        info!("state transfer did not complete");
                         self.checkpoint.update_descriptor(None);
                         StStatus::ReqLatestCid
                     };
