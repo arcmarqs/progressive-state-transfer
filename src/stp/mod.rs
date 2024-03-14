@@ -7,6 +7,7 @@ use atlas_common::threadpool::{self, ThreadPool};
 use atlas_core::ordering_protocol::networking::serialize::NetworkView;
 use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
+use atlas_smr_application::state;
 use futures::future::{ok, select};
 use konst::string::split;
 use regex::Replacer;
@@ -188,9 +189,9 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn get_parts(&self, parts_desc: &[S::PartDescription], pool: &mut Pool) -> Result<Box<[S::StatePart]>> {
         // need to figure out what to do if the part read doesn't match the descriptor
 
-        if parts_desc.is_empty() {
-           return Ok(Box::new([]));
-        }
+    //    if parts_desc.is_empty() {
+   //        return Ok(Box::new([]));
+    //    }
 
         let vec = Arc::new(Mutex::new(Vec::new()));
 
@@ -218,6 +219,8 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                             }
                             None => continue,
                         };
+
+                        println!("{}", state_part.hash().as_ref() == state_part.descriptor().content_description());
 
                         local_vec.push(state_part);
                     }
