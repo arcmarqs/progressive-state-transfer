@@ -1142,6 +1142,7 @@ where
                                     accepted_parts.push(received_part.clone());
                                 } else {
                                     println!("did not accept part {:?} {:?}", received_part.descriptor(), checkpoint_handle.req_parts.iter().find(|p| p.key().as_ref().id() == received_part.descriptor().id()).unwrap().key());
+                                    println!("part in descriptor: {:?}", checkpoint_handle.descriptor().unwrap().parts().iter().find(|p| p.as_ref().id() == received_part.descriptor().id()).unwrap());
                                 }
                             });
 
