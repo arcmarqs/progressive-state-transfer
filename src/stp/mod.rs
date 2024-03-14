@@ -1141,7 +1141,7 @@ where
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     accepted_parts.push(received_part.clone());
                                 } else {
-                                    println!("did not accept part {:?}", checkpoint_handle.requested_part(received_part.descriptor()));
+                                    println!("did not accept part {:?}", received_part.descriptor());
                                 }
                             });
 
@@ -1164,7 +1164,6 @@ where
                     );*/
                 });
 
-                println!("req_parts {:?}", self.checkpoint.req_parts);
 
                 
 
