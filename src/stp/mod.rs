@@ -301,6 +301,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn requested_part(&self, part: &S::PartDescription) -> bool {
         self.req_parts.contains_key(part)
     }
+
     pub fn contains_part(
         &self,
         part: &S::PartDescription,
@@ -1139,7 +1140,8 @@ where
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     accepted_parts.push(received_part.clone());
                                 } else {
-                                    println!("did not accept part {:?} {:?}", received_part.id(), checkpoint_handle.requested_part(received_part.descriptor()));
+                                    println!("did not accept part {:?} {:?}",received_part.hash().as_ref()
+                                    == received_part.descriptor().content_description(), checkpoint_handle.requested_part(received_part.descriptor()));
                                 }
                             });
 
