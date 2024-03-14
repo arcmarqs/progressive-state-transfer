@@ -220,6 +220,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                             None => continue,
                         };
 
+                        println!("{:?} {:?}", state_part.descriptor(), self.descriptor().unwrap().parts().iter().find(|p| p.as_ref().id() == state_part.descriptor().id()).unwrap());
                         local_vec.push(state_part);
                     }
 
