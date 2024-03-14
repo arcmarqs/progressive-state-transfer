@@ -1427,6 +1427,7 @@ where
         }
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
+        println!("checkpoint updated");
 
         Ok(())
     }
