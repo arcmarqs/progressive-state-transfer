@@ -1145,8 +1145,6 @@ where
                                 }
                             });
 
-                            println!("req_parts {:?}", checkpoint_handle.req_parts);
-
                             let _ =
                                 checkpoint_handle.write_parts(accepted_parts.into_boxed_slice());
 
@@ -1165,6 +1163,8 @@ where
                         state.st_frag.len()
                     );*/
                 });
+
+                println!("req_parts {:?}", self.checkpoint.req_parts);
 
                 
 
