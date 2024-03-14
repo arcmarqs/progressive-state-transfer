@@ -220,8 +220,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                             None => continue,
                         };
 
-                        println!("{}", state_part.hash().as_ref() == state_part.descriptor().content_description());
-
                         local_vec.push(state_part);
                     }
 
@@ -292,8 +290,8 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
                                 continue;
                             }
-                        }
-
+                        }                       
+                        
                         self.req_parts.insert(part.clone(), ());
                     }
                 });
@@ -1143,10 +1141,11 @@ where
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     accepted_parts.push(received_part.clone());
                                 } else {
-                                    println!("did not accept part {:?} {:?}",received_part.hash().as_ref()
-                                    == received_part.descriptor().content_description(), checkpoint_handle.requested_part(received_part.descriptor()));
+                                    println!("did not accept part {:?}", checkpoint_handle.requested_part(received_part.descriptor()));
                                 }
                             });
+
+                            println!("req_parts {:?}", checkpoint_handle.req_parts);
 
                             let _ =
                                 checkpoint_handle.write_parts(accepted_parts.into_boxed_slice());
