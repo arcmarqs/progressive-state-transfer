@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use atlas_common::channel::{self, ChannelSyncTx};
-use atlas_common::crypto::hash::Digest;
+use atlas_common::crypto::hash::{Context, Digest};
 use atlas_common::maybe_vec::MaybeVec;
 use atlas_common::persistentdb::KVDB;
 use atlas_common::threadpool::{self, ThreadPool};
@@ -220,7 +220,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                             None => continue,
                         };
 
-                        println!("{:?} {:?}", state_part.descriptor(), self.descriptor().unwrap().parts().iter().find(|p| p.as_ref().id() == state_part.descriptor().id()).unwrap());
                         local_vec.push(state_part);
                     }
 
@@ -230,6 +229,17 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         });
 
         let unwrapped_vec = Arc::try_unwrap(vec).expect("Lock still has multiple owners");
+
+        let mut h = Context::new();
+
+        for part in unwrapped_vec.lock().expect("failed to lock").iter() {
+            println!("part: {:?}", part);
+
+            h.update(part.descriptor().content_description());
+        }
+
+        println!("parts: {:?}", h.finish());
+
 
         Ok(unwrapped_vec.into_inner().expect("failed to extract vec from mutex").into_boxed_slice())
     }
@@ -1141,10 +1151,7 @@ where
                                 {
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     accepted_parts.push(received_part.clone());
-                                } else {
-                                    println!("did not accept part {:?} {:?}", received_part.descriptor(), checkpoint_handle.req_parts.iter().find(|p| p.key().as_ref().id() == received_part.descriptor().id()).unwrap().key());
-                                    println!("part in descriptor: {:?}", checkpoint_handle.descriptor().unwrap().parts().iter().find(|p| p.as_ref().id() == received_part.descriptor().id()).unwrap());
-                                }
+                                } 
                             });
 
                             let _ =
@@ -1397,6 +1404,17 @@ where
         &mut self,
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
+
+        let mut h = Context::new();
+
+        for part in &parts {
+            println!("part: {:?}", part);
+
+            h.update(part.descriptor().content_description());
+        }
+
+        println!("parts: {:?}", h.finish());
+
         let time = Instant::now();
         if !parts.is_empty() {
             let part_split = split_evenly(&parts, 8);
