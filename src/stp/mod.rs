@@ -233,7 +233,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let mut h = Context::new();
 
         for part in unwrapped_vec.lock().expect("failed to lock").iter() {
-            println!("part: {:?}", part);
+            println!("part: {:?}", part.descriptor());
 
             h.update(part.descriptor().content_description());
         }
@@ -1408,7 +1408,7 @@ where
         let mut h = Context::new();
 
         for part in &parts {
-            println!("part: {:?}", part);
+            println!("part: {:?}", part.descriptor());
 
             h.update(part.descriptor().content_description());
         }
