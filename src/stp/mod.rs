@@ -1394,12 +1394,9 @@ where
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
 
-        for part in &parts {
-            info!("part: {:?}", part.descriptor());
-        }
         let time = Instant::now();
         if !parts.is_empty() {
-            let part_split = split_evenly(&parts, 8);
+            let part_split = split_evenly(&parts, 4);
             self.threadpool.scoped(|scope| {
                 part_split.for_each(|chunk| {
                     let handle = self.checkpoint.clone();
