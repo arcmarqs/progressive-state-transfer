@@ -219,7 +219,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                             }
                             None => continue,
                         };
-                        println!("part {:?}", state_part.descriptor());
                         local_vec.push(state_part);
                     }
 
@@ -1117,7 +1116,7 @@ where
                     None => return StStatus::Running,
                 };
 
-                let frags = split_evenly(&state.st_frag, 4);
+                let frags = split_evenly(&state.st_frag, 6);
 
                 self.threadpool.scoped(|scope| {
                    // let time = Instant::now();
