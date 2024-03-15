@@ -213,7 +213,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     for part in chunk {
                         let state_part = match part.as_ref().expect("invalid part") {
                             Some(buf) => {
-                                let res = bincode::deserialize::<S::StatePart>(&buf)
+                                let res = bincode::deserialize::<S::StatePart>(buf)
                                     .expect("failed to deserialize part");
                                 res
                             }
@@ -229,17 +229,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         });
 
         let unwrapped_vec = Arc::try_unwrap(vec).expect("Lock still has multiple owners");
-
-        let mut h = Context::new();
-
-        for part in unwrapped_vec.lock().expect("failed to lock").iter() {
-            println!("part: {:?}", part.descriptor());
-
-            h.update(part.descriptor().content_description());
-        }
-
-        println!("parts: {:?}", h.finish());
-
 
         Ok(unwrapped_vec.into_inner().expect("failed to extract vec from mutex").into_boxed_slice())
     }
@@ -1404,17 +1393,6 @@ where
         &mut self,
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
-
-        let mut h = Context::new();
-
-        for part in &parts {
-            println!("part: {:?}", part.descriptor());
-
-            h.update(part.descriptor().content_description());
-        }
-
-        println!("parts: {:?}", h.finish());
-
         let time = Instant::now();
         if !parts.is_empty() {
             let part_split = split_evenly(&parts, 8);
