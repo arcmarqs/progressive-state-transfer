@@ -219,7 +219,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                             }
                             None => continue,
                         };
-
+                        println!("part {:?}", state_part.descriptor());
                         local_vec.push(state_part);
                     }
 
@@ -1393,6 +1393,10 @@ where
         &mut self,
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
+
+        for part in &parts {
+            info!("part: {:?}", part.descriptor());
+        }
         let time = Instant::now();
         if !parts.is_empty() {
             let part_split = split_evenly(&parts, 8);
