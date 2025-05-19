@@ -733,6 +733,7 @@ where
             return StStatus::Nil;
         }
 
+        debug!("increasing seq on timeout");
         self.next_seq();
 
         match self.phase {
@@ -782,6 +783,7 @@ where
     where
         V: NetworkView,
     {
+        debug!("increasing seq on request descriptor");
         self.next_seq();
 
         let cst_seq = self.curr_seq;
@@ -1200,6 +1202,8 @@ where
         self.largest_cid = SeqNo::ZERO;
         self.received_state_ids.clear();
 
+        debug!("increase seq on latest consensus");
+        
         self.next_seq();
 
         let cst_seq = self.curr_seq;
