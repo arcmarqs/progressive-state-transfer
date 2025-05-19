@@ -1183,6 +1183,7 @@ where
                         // where we assume our state is wrong, therefore out descriptor is wrong
                         info!("state transfer did not complete");
                         self.checkpoint.update_descriptor(None);
+                        self.curr_seq = self.checkpoint.get_seqno();
                         StStatus::ReqLatestCid
                     };
                 }
@@ -1203,7 +1204,7 @@ where
         self.received_state_ids.clear();
 
         debug!("increase seq on latest consensus");
-        
+
         self.next_seq();
 
         let cst_seq = self.curr_seq;
