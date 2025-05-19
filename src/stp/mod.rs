@@ -783,8 +783,8 @@ where
     where
         V: NetworkView,
     {
-        debug!("increasing seq on request descriptor");
-        self.next_seq();
+       // debug!("increasing seq on request descriptor");
+       // self.next_seq();
 
         let cst_seq = self.curr_seq;
 
