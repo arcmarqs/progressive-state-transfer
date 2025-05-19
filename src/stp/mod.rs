@@ -1203,9 +1203,9 @@ where
         self.largest_cid = SeqNo::ZERO;
         self.received_state_ids.clear();
 
-        debug!("increase seq on latest consensus");
+       // debug!("increase seq on latest consensus");
 
-        self.next_seq();
+       // self.next_seq();
 
         let cst_seq = self.curr_seq;
 
