@@ -1234,7 +1234,7 @@ where
         let cst_seq = self.curr_seq;
 
         info!(
-            "{:?} // Requesting latest state with cst msg seq {:?}",
+            "{:?} // Requesting state parts {:?}",
             self.node.id(),
             cst_seq
         );
@@ -1261,6 +1261,7 @@ where
         });
 
         for (p, n) in parts_map.zip(targets.iter()) {
+            debug!("requesting {:?} parts to node {:?}", p.len(), n);
             let message = StMessage::new(cst_seq, MessageKind::ReqState(p.into_boxed_slice()));
 
             self.node.send(message, *n, false)?;
