@@ -1174,7 +1174,7 @@ where
                     self.phase = ProtoPhase::Init;
 
                     targets.clear();
-
+                    debug!("parts remaining {:?}", self.checkpoint.req_parts.len());
                     return if self.checkpoint.req_parts.is_empty() {
                         println!("state transfer complete seq: {:?}", state.seq);
                         StStatus::StateComplete(state.seq)
