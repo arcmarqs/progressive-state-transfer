@@ -1118,6 +1118,7 @@ where
                     None => return StStatus::Running,
                 };
 
+
                 let frags = split_evenly(&state.st_frag, 6);
 
                 self.threadpool.scoped(|scope| {
@@ -1131,6 +1132,8 @@ where
                             let mut accepted_descriptor = Vec::new();
 
                             frag.iter().for_each(|received_part| {
+                                debug!("received part  {:?}", received_part.descriptor());
+
                                 metric_increment(
                                     TOTAL_STATE_TRANSFERED_ID,
                                     Some(received_part.size()),
@@ -1174,7 +1177,6 @@ where
                     self.phase = ProtoPhase::Init;
 
                     targets.clear();
-                    debug!("parts remaining {:?}", self.checkpoint.req_parts.len());
                     return if self.checkpoint.req_parts.is_empty() {
                         println!("state transfer complete seq: {:?}", state.seq);
                         StStatus::StateComplete(state.seq)
@@ -1182,6 +1184,7 @@ where
                         // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
                         // where we assume our state is wrong, therefore out descriptor is wrong
                         info!("state transfer did not complete");
+
                         self.checkpoint.update_descriptor(None);
                         
                         StStatus::ReqLatestCid
