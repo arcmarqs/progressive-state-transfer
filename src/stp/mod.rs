@@ -1119,7 +1119,7 @@ where
                 };
 
 
-                debug!("Received STATE {:?}", state.st_frag.len());
+                debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
                 let frags = split_evenly(&state.st_frag, 6);
 
