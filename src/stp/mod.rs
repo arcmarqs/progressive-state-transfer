@@ -1118,6 +1118,8 @@ where
                     None => return StStatus::Running,
                 };
 
+                debug!("Received STATE");
+
 
                 let frags = split_evenly(&state.st_frag, 6);
 
