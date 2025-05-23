@@ -193,7 +193,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
    //        return Ok(Box::new([]));
     //    }
 
-    debug!("getting part {:?}", parts_desc);
 
         let vec = Arc::new(Mutex::new(Vec::new()));
 
@@ -205,9 +204,11 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         });
 
         let binding = self.parts.get_all(batch).expect("failed to get all parts");
+        debug!("get parts result {:?}", binding);
         let parts = split_evenly(&binding, 4);
 
         pool.scoped(|scope| {
+
             parts.for_each(|chunk| {
                 let vec_handle = vec.clone();
                 scope.execute(move || {
@@ -220,7 +221,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                                 res
                             }
                             None =>{
-                                debug!("part not found");
                                 continue;
                             }
                         };
