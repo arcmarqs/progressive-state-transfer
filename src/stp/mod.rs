@@ -209,10 +209,12 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         pool.scoped(|scope| {
 
             parts.for_each(|chunk| {
+
                 let vec_handle = vec.clone();
                 scope.execute(move || {
                     let mut local_vec = Vec::new();
                     for part in chunk {
+                        debug!("part in chunk ");
                         let state_part = match part.as_ref().expect("invalid part") {
                             Some(buf) => {
                                 let res = bincode::deserialize::<S::StatePart>(buf)
@@ -223,7 +225,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                                 continue;
                             }
                         };
-                        debug!("part {:?}", state_part.descriptor());
 
                         local_vec.push(state_part);
                     }
@@ -232,9 +233,9 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                 });
             });
         });
+        debug!("GOT PARTS {:?}", vec.lock().unwrap().len());
 
         let unwrapped_vec = Arc::try_unwrap(vec).expect("Lock still has multiple owners");
-
         Ok(unwrapped_vec.into_inner().expect("failed to extract vec from mutex").into_boxed_slice())
     }
 
