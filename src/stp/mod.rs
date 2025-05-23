@@ -215,7 +215,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     debug!("execute get parts {:?}", chunk.len());
                     let mut local_vec = Vec::new();
                     for part in chunk {
-                        debug!("inside get part {:?}", part.is_ok());
                         let state_part = match part.as_ref().expect("invalid part") {
                             Some(buf) => {
                                 debug!("has actual part");
@@ -224,6 +223,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                                 res
                             }
                             None =>{
+                                debug!("part is empty");
                                 continue;
                             }
                         };
