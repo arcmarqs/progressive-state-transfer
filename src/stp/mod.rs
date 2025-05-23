@@ -880,6 +880,8 @@ where
             }
         };
 
+        debug!("fragment {:?}", st_frag.len());
+
         let reply = StMessage::new(
             message.sequence_number(),
             MessageKind::ReplyState(RecoveryState {
