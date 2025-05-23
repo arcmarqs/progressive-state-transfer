@@ -877,7 +877,7 @@ where
 
         let st_frag = match message.kind() {
             MessageKind::ReqState(req_parts) => {
-                debug!("received request state message")
+                debug!("received request state message");
                 let parts = req_parts.iter().as_slice();
                 self.checkpoint.get_parts(parts, &mut self.threadpool).unwrap()
             }
