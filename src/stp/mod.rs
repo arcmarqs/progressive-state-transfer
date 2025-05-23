@@ -212,7 +212,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
                 let vec_handle = vec.clone();
                 scope.execute(move || {
-                    debug!("execute get parts");
+                    debug!("execute get parts {:?}", chunk.len());
                     let mut local_vec = Vec::new();
                     for part in chunk {
                         let state_part = match part.as_ref().expect("invalid part") {
