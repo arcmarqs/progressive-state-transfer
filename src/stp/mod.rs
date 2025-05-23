@@ -193,6 +193,8 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
    //        return Ok(Box::new([]));
     //    }
 
+    debug!("getting part {:?}", parts_desc);
+
         let vec = Arc::new(Mutex::new(Vec::new()));
 
         let batch = parts_desc.iter().map(|part| {
@@ -217,7 +219,10 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                                     .expect("failed to deserialize part");
                                 res
                             }
-                            None => continue,
+                            None =>{
+                                debug!("part not found");
+                                continue;
+                            }
                         };
                         local_vec.push(state_part);
                     }
@@ -872,6 +877,7 @@ where
 
         let st_frag = match message.kind() {
             MessageKind::ReqState(req_parts) => {
+                debug!("received request state message")
                 let parts = req_parts.iter().as_slice();
                 self.checkpoint.get_parts(parts, &mut self.threadpool).unwrap()
             }
