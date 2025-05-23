@@ -204,7 +204,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         });
 
         let binding = self.parts.get_all(batch).expect("failed to get all parts");
-        debug!("get parts result {:?}", binding);
         let parts = split_evenly(&binding, 4);
 
         pool.scoped(|scope| {
@@ -224,6 +223,8 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                                 continue;
                             }
                         };
+                        debug!("part {:?}", state_part.descriptor());
+
                         local_vec.push(state_part);
                     }
 
