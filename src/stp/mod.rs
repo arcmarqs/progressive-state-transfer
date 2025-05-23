@@ -193,7 +193,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
    //        return Ok(Box::new([]));
     //    }
 
-
+        debug!("does part match descriptor {:?} desc {:?}", parts_desc, self.descriptor());
         let vec = Arc::new(Mutex::new(Vec::new()));
 
         let batch = parts_desc.iter().map(|part| {
