@@ -12,7 +12,6 @@ use futures::future::{ok, select};
 use konst::string::split;
 use regex::Replacer;
 use scoped_threadpool::Pool;
-use std::clone::CloneToUninit;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex, RwLock};
