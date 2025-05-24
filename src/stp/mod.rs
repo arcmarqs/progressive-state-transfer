@@ -188,7 +188,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
            let res = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
 
            if res.is_err() {
-            debug!("ERROR WRITING PARTS");
+            debug!("ERROR WRITING PARTS {:?}", res.unwrap_err());
            }
         }
         Ok(())
