@@ -184,7 +184,12 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let _ = self.parts.set_all(STATE, batch); */
 
         for part in parts.iter() {
-           let _ = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
+            debug!("writing part {:?}", part.size());
+           let res = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
+
+           if res.is_err() {
+            debug!("ERROR WRITING PARTS");
+           }
         }
         Ok(())
     }
@@ -199,7 +204,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let vec = Arc::new(Mutex::new(Vec::new()));
 
             let batch = parts_desc.iter().map(|part| {
-            debug!("writing part {:?}", part.id());
                 (
                     STATE,
                     part.id(),
