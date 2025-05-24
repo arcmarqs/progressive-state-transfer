@@ -176,7 +176,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
         let batch = parts.iter().map(|part| {
-            debug!("writing part {:?} size {:?}", part.descriptor(), part.size());
+            debug!("writing part {:?} size {:?}", part.id(), part.size());
 
             (
                 part.id(),
@@ -199,7 +199,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let vec = Arc::new(Mutex::new(Vec::new()));
 
         let batch = parts_desc.iter().map(|part| {
-            debug!("INCLUDING PART {:?}", part);
+            debug!("INCLUDING PART {:?}", part.id());
             (
                 STATE,
                 part.id(),
