@@ -160,7 +160,11 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     fn read_local_part(&self, part_id: &[u8]) -> Result<Option<S::StatePart>> {
-
+        let mut part_id = if part_id.is_empty() {
+            "all".as_bytes()
+        } else {
+            part_id
+        };
         let res = self.parts.get(STATE, part_id)?;
 
         match res {
@@ -177,11 +181,16 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
         let batch = parts.iter().map(|part| {
             debug!("writing part {:?} size {:?}", part.id(), part.size());
-
-            (
-                part.id(),
-                bincode::serialize(part).unwrap(),
-            )
+            if part.id().is_empty() {
+                (
+                    STATE,
+                    "all".as_bytes()
+                )
+            } else {
+                (
+                    STATE,
+                    part.id(),
+                )
         });
 
         let _ = self.parts.set_all(STATE, batch); 
@@ -199,11 +208,17 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let vec = Arc::new(Mutex::new(Vec::new()));
 
         let batch = parts_desc.iter().map(|part| {
-            debug!("INCLUDING PART {:?}", part.id());
-            (
-                STATE,
-                part.id(),
-            )
+            if part.id().is_empty() {
+                (
+                    STATE,
+                    "all".as_bytes()
+                )
+            } else {
+                (
+                    STATE,
+                    part.id(),
+                )
+        }
         });
 
         let binding = self.parts.get_all(batch).expect("failed to get all parts");
@@ -253,12 +268,20 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
         let mut vec = Vec::new();
         let mut size = 0;
-        let batch = parts_desc.iter().map(|part| {
-            (
-                STATE,
-                part.id(),
-            )
+      let batch = parts_desc.iter().map(|part| {
+            if part.id().is_empty() {
+                (
+                    STATE,
+                    "all".as_bytes()
+                )
+            } else {
+                (
+                    STATE,
+                    part.id(),
+                )
+        }
         });
+        
         let parts = self.parts.get_all(batch).expect("failed to get all parts");
 
         for part in parts {
