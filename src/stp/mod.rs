@@ -160,11 +160,6 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     fn read_local_part(&self, part_id: &[u8]) -> Result<Option<S::StatePart>> {
-        let mut part_id = if part_id.is_empty() {
-            "all".as_bytes()
-        } else {
-            part_id
-        };
         let res = self.parts.get(STATE, part_id)?;
 
         match res {
@@ -181,19 +176,16 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
         let batch = parts.iter().map(|part| {
             debug!("writing part {:?} size {:?}", part.id(), part.size());
-            if part.id().is_empty() {
-                (
-                    STATE,
-                    "all".as_bytes()
-                )
-            } else {
                 (
                     STATE,
                     part.id(),
-                )}
+                )
         });
 
-        let _ = self.parts.set_all(STATE, batch); 
+        match self.parts.set_all(STATE, batch) {
+            Ok(_) => debug!("Parts were written"),
+            Err(e) => debug!("Failed to write part {:?}", e),
+        }
         Ok(())
     }
 
@@ -207,18 +199,12 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         debug!("does part match descriptor {:?} desc {:?}", parts_desc, self.descriptor());
         let vec = Arc::new(Mutex::new(Vec::new()));
 
-        let batch = parts_desc.iter().map(|part| {
-            if part.id().is_empty() {
-                (
-                    STATE,
-                    "all".as_bytes()
-                )
-            } else {
+            let batch = parts_desc.iter().map(|part| {
+            debug!("writing part {:?}", part.id());
                 (
                     STATE,
                     part.id(),
                 )
-        }
         });
 
         let binding = self.parts.get_all(batch).expect("failed to get all parts");
@@ -230,7 +216,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
                 let vec_handle = vec.clone();
                 scope.execute(move || {
-                    debug!("execute get parts {:?}", chunk.len());
+                    debug!("execute get parts {:?}", chunk);
                     let mut local_vec = Vec::new();
                     for part in chunk {
                         debug!("part {:?}", part);
@@ -268,18 +254,12 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
         let mut vec = Vec::new();
         let mut size = 0;
-      let batch = parts_desc.iter().map(|part| {
-            if part.id().is_empty() {
-                (
-                    STATE,
-                    "all".as_bytes()
-                )
-            } else {
+        let batch = parts_desc.iter().map(|part| {
+            debug!("writing part {:?}", part.id());
                 (
                     STATE,
                     part.id(),
                 )
-            }
         });
 
         let parts = self.parts.get_all(batch).expect("failed to get all parts");
