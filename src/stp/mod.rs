@@ -176,7 +176,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
         let batch = parts.iter().map(|part| {
-            debug!("writing part {:?}", part.descriptor());
+            debug!("writing part {:?} size {:?}", part.descriptor(), part.size());
 
             (
                 part.id(),
