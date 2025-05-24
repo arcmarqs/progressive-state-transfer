@@ -190,7 +190,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                 (
                     STATE,
                     part.id(),
-                )
+                )}
         });
 
         let _ = self.parts.set_all(STATE, batch); 
@@ -279,9 +279,9 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     STATE,
                     part.id(),
                 )
-        }
+            }
         });
-        
+
         let parts = self.parts.get_all(batch).expect("failed to get all parts");
 
         for part in parts {
