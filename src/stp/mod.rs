@@ -174,23 +174,23 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
-        /*  let batch = parts.iter().map(|part| {
+        let batch = parts.iter().map(|part| {
             (
                 part.id(),
                 bincode::serialize(part).unwrap(),
             )
         });
 
-        let _ = self.parts.set_all(STATE, batch); */
+        let _ = self.parts.set_all(STATE, batch);
 
-        for part in parts.iter() {
+       /*  for part in parts.iter() {
             debug!("writing part {:?}", part.size());
            let res = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
 
            if res.is_err() {
             debug!("ERROR WRITING PARTS {:?}", res.unwrap_err());
            }
-        }
+    }*/
         Ok(())
     }
     pub fn get_parts(&self, parts_desc: &[S::PartDescription], pool: &mut Pool) -> Result<Box<[S::StatePart]>> {
