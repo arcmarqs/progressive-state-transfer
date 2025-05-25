@@ -200,7 +200,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
    //        return Ok(Box::new([]));
     //    }
 
-        debug!("does part match descriptor {:?} desc {:?}", parts_desc, self.descriptor());
+        //debug!("does part match descriptor {:?} desc {:?}", parts_desc, self.descriptor());
         let vec = Arc::new(Mutex::new(Vec::new()));
 
             let batch = parts_desc.iter().map(|part| {
@@ -219,19 +219,19 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
                 let vec_handle = vec.clone();
                 scope.execute(move || {
-                    debug!("execute get parts {:?}", chunk);
+                 //   debug!("execute get parts {:?}", chunk);
                     let mut local_vec = Vec::new();
                     for part in chunk {
-                        debug!("part {:?}", part);
+                   //     debug!("part {:?}", part);
                         let state_part = match part.as_ref().expect("invalid part") {
                             Some(buf) => {
-                                debug!("has actual part");
+                         //       debug!("has actual part");
                                 let res = bincode::deserialize::<S::StatePart>(buf)
                                     .expect("failed to deserialize part");
                                 res
                             }
                             None =>{
-                                debug!("part is empty");
+                             //   debug!("part is empty");
                                 continue;
                             }
                         };
@@ -243,7 +243,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                 });
             });
         });
-        debug!("GOT PARTS {:?}", vec.lock().unwrap().len());
+     //   debug!("GOT PARTS {:?}", vec.lock().unwrap().len());
 
         let unwrapped_vec = Arc::try_unwrap(vec).expect("Lock still has multiple owners");
         Ok(unwrapped_vec.into_inner().expect("failed to extract vec from mutex").into_boxed_slice())
@@ -258,7 +258,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let mut vec = Vec::new();
         let mut size = 0;
         let batch = parts_desc.iter().map(|part| {
-            debug!("writing part {:?}", part.id());
+        //    debug!("writing part {:?}", part.id());
                 (
                     STATE,
                     part.id(),
@@ -1141,7 +1141,7 @@ where
                 };
 
 
-                debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
+             //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
                 let frags = split_evenly(&state.st_frag, 6);
 
@@ -1156,7 +1156,7 @@ where
                             let mut accepted_descriptor = Vec::new();
 
                             frag.iter().for_each(|received_part| {
-                                debug!("received part  {:?}", received_part.descriptor());
+                             //   debug!("received part  {:?}", received_part.descriptor());
 
                                 metric_increment(
                                     TOTAL_STATE_TRANSFERED_ID,
@@ -1288,7 +1288,7 @@ where
         });
 
         for (p, n) in parts_map.zip(targets.iter()) {
-            debug!("requesting {:?} parts to node {:?}", p.len(), n);
+          //  debug!("requesting {:?} parts to node {:?}", p.len(), n);
             let message = StMessage::new(cst_seq, MessageKind::ReqState(p.into_boxed_slice()));
 
             self.node.send(message, *n, false)?;
