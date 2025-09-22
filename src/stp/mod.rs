@@ -688,7 +688,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(12);
+        let tp = Pool::new(4);
         Self {
             base_timeout,
             curr_timeout: base_timeout,
