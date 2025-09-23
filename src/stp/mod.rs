@@ -180,7 +180,7 @@ where PL: DivisibleStateLog<S> + 'static {
            }
     }*/
     }
-    pub fn get_parts(&self, parts_desc: Vec<S::PartDescription>, pool: &mut Pool) -> Result<Box<[S::StatePart]>> {
+    pub fn get_parts(&self, parts_desc: Vec<S::PartDescription>) -> Result<Box<[S::StatePart]>> {
         // need to figure out what to do if the part read doesn't match the descriptor
 
     //    if parts_desc.is_empty() {
@@ -235,7 +235,7 @@ where PL: DivisibleStateLog<S> + 'static {
         Ok((vec, size))
     }
 
-    pub fn get_req_parts(&self, pool: &mut Pool) {
+    pub fn get_req_parts(&self) {
         let desc_parts = self.descriptor_parts();
 
         for part in desc_parts {
@@ -371,7 +371,6 @@ where
     new_descriptor: Option<S::StateDescriptor>,
     node: Arc<NT>,
     phase: ProtoPhase<S>,
-    threadpool: Pool,
     received_state_ids: BTreeMap<(SeqNo, Digest), Vec<NodeId>>,
     // received_state_descriptor: HashMap<SeqNo, S::StateDescriptor>,
     install_channel: ChannelSyncTx<InstallStateMessage<S>>,
@@ -556,7 +555,7 @@ where
                 } else {
                     self.checkpoint.update_descriptor(Some(descriptor));
 
-                    self.checkpoint.get_req_parts(&mut self.threadpool);
+                    self.checkpoint.get_req_parts();
 
                     if self.checkpoint.req_parts.is_empty() {
                         return self.install_state();
@@ -624,7 +623,6 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(2);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id,persistent_log));
        // checkpoint.statistics();
 
@@ -641,7 +639,6 @@ where
             //received_state_descriptors: HashMap::default(),
             received_state_ids: BTreeMap::default(),
             new_descriptor: None,
-            threadpool: tp,
         }
     }
 
@@ -831,7 +828,7 @@ where
             MessageKind::ReqState(req_parts) => {
                 debug!("received request state message");
                 let parts = req_parts.to_vec();
-                self.checkpoint.get_parts(parts, &mut self.threadpool).unwrap()
+                self.checkpoint.get_parts(parts).unwrap()
             }
             _ => {
                 return;
