@@ -707,7 +707,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(2);
+        let tp = Pool::new(4);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
         checkpoint.statistics();
 
@@ -1448,7 +1448,7 @@ where
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
 
-        let time = Instant::now();
+       // let time = Instant::now();
         if !parts.is_empty() {
             let part_split = split_evenly(&parts, 12);
             self.threadpool.scoped(|scope| {
@@ -1461,7 +1461,7 @@ where
                 })
             });
         }
-        println!("Checkpoint Installed {:?}", time.elapsed());
+       // println!("Checkpoint Installed {:?}", time.elapsed());
         Ok(())
     }
 
@@ -1479,7 +1479,7 @@ where
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
         println!("checkpoint updated");
-        self.checkpoint.statistics();
+        //self.checkpoint.statistics();
 
         Ok(())
     }
