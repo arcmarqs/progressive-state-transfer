@@ -19,6 +19,7 @@ futures-timer = "3"
 rand_core = "0.6"
 capnp = "0.16.0"
 konst = "0.3.4"
+libc = "*"
 nolock = "0.3"
 chrono = "0.4"
 mimalloc = { version = "*", default-features = false }

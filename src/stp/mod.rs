@@ -340,7 +340,13 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     pub fn statistics(&self) {
-        println!("Static size of descriptor struct: {} bytes", mem::size_of_val(&self.descriptor()));
+        let statm = std::fs::read_to_string("/proc/self/statm").unwrap();
+        let parts: Vec<&str> = statm.split_whitespace().collect();
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        let rss_pages: i64 = parts[1].parse().unwrap();
+        let rss_bytes = rss_pages as i64 * page_size;
+        println!("Resident set size: {:.2} MB", rss_bytes as f64 / (1024.0 * 1024.0));
+        
         self.parts.get_properties();
     }
 }
@@ -698,7 +704,7 @@ where
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
 
         checkpoint.statistics();
-        
+
         Self {
             base_timeout,
             curr_timeout: base_timeout,
