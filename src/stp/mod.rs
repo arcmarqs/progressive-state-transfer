@@ -709,7 +709,7 @@ where
         let id = node.id();
         let tp = Pool::new(4);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
-        checkpoint.statistics();
+       // checkpoint.statistics();
 
         Self {
             base_timeout,
