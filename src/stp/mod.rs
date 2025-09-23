@@ -14,6 +14,7 @@ use regex::Replacer;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
+use std::mem;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -336,6 +337,11 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn update_descriptor(&self, descriptor: Option<S::StateDescriptor>) {
         let mut desc = self.descriptor.write().expect("failed to get lock");
         *desc = descriptor;
+    }
+
+    pub fn statistics(&self) {
+        println!("Static size of descriptor struct: {} bytes", mem::size_of_val(&self.descriptor()));
+        self.parts.get_properties();
     }
 }
 
@@ -689,6 +695,10 @@ where
     ) -> Self {
         let id = node.id();
         let tp = Pool::new(4);
+        let checkpoint = Arc::new(PersistentCheckpoint::new(id));
+
+        checkpoint.statistics();
+        
         Self {
             base_timeout,
             curr_timeout: base_timeout,
@@ -699,7 +709,7 @@ where
             curr_seq: SeqNo::ZERO,
             persistent_log,
             install_channel,
-            checkpoint: Arc::new(PersistentCheckpoint::new(id)),
+            checkpoint,
             //received_state_descriptors: HashMap::default(),
             received_state_ids: BTreeMap::default(),
             new_descriptor: None,
@@ -1457,6 +1467,7 @@ where
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
         println!("checkpoint updated");
+        self.checkpoint.statistics();
 
         Ok(())
     }
