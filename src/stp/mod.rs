@@ -346,7 +346,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         let rss_pages: i64 = parts[1].parse().unwrap();
         let rss_bytes = rss_pages as i64 * page_size;
         println!("Resident set size: {:.2} MB", rss_bytes as f64 / (1024.0 * 1024.0));
-        
+
         self.parts.get_properties();
     }
 }
@@ -700,7 +700,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(4);
+        let tp = Pool::new(2);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
 
         checkpoint.statistics();
