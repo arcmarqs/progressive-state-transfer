@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use atlas_smr_application::state::divisible_state::{
     DivisibleState, DivisibleStateDescriptor, InstallStateMessage, PartId, StatePart,
 };
-use log::{debug, info};
+use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
 use crate::stp::message::MessageKind;
@@ -248,7 +248,6 @@ where
 
     pub fn get_req_parts(&self) {
         let desc_parts = self.descriptor_parts();
-
         for part in desc_parts {
             if let Some(local_part) = self
                 .read_local_part(part.as_ref())
@@ -256,13 +255,15 @@ where
             {
                 if part.content_description() == local_part.hash().as_ref() {
                     // We've confirmed that this part is valid so we don't need to request it
-
+                    
                     continue;
                 }
             }
 
             self.req_parts.insert(part.clone(), ());
         }
+
+        println!("requesting {:?} parts", self.req_parts.len());
     }
 
     pub fn requested_part(&self, part: &S::PartDescription) -> bool {
@@ -283,8 +284,10 @@ where
 
     pub fn update_descriptor(&self, descriptor: Option<S::StateDescriptor>) {
         if let Some(descriptor) = descriptor {
-            self.parts
-                .write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor);
+            if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
+                println!("error updating descriptor");
+                error!("could not update descriptor");
+            }
         }
     }
 }
@@ -939,6 +942,7 @@ where
                 let (header, message) = getmessage!(progress, StStatus::ReqLatestCid);
                 // debug!("{:?} // Received Cid with {} responses from {:?} for CST Seq {:?} vs Ours {:?}", self.node.id(),
                 //    i, header.from(), message.sequence_number(), self.curr_seq);
+                println!("receiving sequence number");
 
                 // drop cst messages with invalid seq no
                 if message.sequence_number() != self.curr_seq {
