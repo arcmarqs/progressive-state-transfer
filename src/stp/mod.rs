@@ -143,7 +143,13 @@ where
     }
 
     pub fn descriptor(&self) -> Option<S::StateDescriptor> {
-        self.parts.read_local_descriptor().unwrap_or(None)
+        match self.parts.read_local_descriptor() {
+            Ok(desc) => desc,
+            Err(e) => {
+                println!("failed to read descriptor {:?}", e);
+                None
+            },
+        }
     }
 
     pub fn descriptor_parts(&self) -> Vec<Arc<S::PartDescription>> {
@@ -1372,6 +1378,13 @@ where
     fn handle_state_finished_reception(&mut self, seq_no: SeqNo) -> Result<()> {
         if let Some(desc) = self.new_descriptor.take() {
             info!(
+                "{:?} // new checkpoint desc{:?}, seqno {:?}",
+                self.node.id(),
+                &desc.get_digest(),
+                seq_no.next()
+            );
+
+              println!(
                 "{:?} // new checkpoint desc{:?}, seqno {:?}",
                 self.node.id(),
                 &desc.get_digest(),
