@@ -747,6 +747,14 @@ where
             seq
         );
 
+        println!(
+        "{:?} // Replying to {:?} seq {:?} with seq no {:?}",
+        self.node.id(),
+        header.from(),
+        message.sequence_number(),
+        seq
+        );
+
         let _ = self.node.send(reply, header.from(), true);
     }
 
@@ -899,7 +907,7 @@ where
             message.sequence_number(),
             MessageKind::ReplyStateDescriptor(Some((self.checkpoint.get_seqno(), state.clone()))),
         );
-
+        println!("replying with descriptor {:?}");
         self.node.send(reply, header.from(), true).unwrap();
     }
 
