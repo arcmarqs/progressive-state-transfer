@@ -144,7 +144,10 @@ where
 
     pub fn descriptor(&self) -> Option<S::StateDescriptor> {
         match self.parts.read_local_descriptor() {
-            Ok(desc) => desc,
+            Ok(desc) => {
+                println!("descriptor {:?}", desc);
+                desc
+            },
             Err(e) => {
                 println!("failed to read descriptor {:?}", e);
                 None
