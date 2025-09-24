@@ -1090,16 +1090,13 @@ where
                     None => return StStatus::Running,
                 };
 
-                //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
-
-                // let time = Instant::now();
-                let mut accepted_parts = Vec::new();
                 let mut accepted_descriptor = Vec::new();
+                let mut accepted_parts = Vec::new();
 
-                state.st_frag.into_iter().for_each(|received_part| {
-                    //   debug!("received part  {:?}", received_part.descriptor());
-
+                for received_part in state.st_frag.iter() {
                     metric_increment(TOTAL_STATE_TRANSFERED_ID, Some(received_part.size()));
+
+                    //  let part_hash = received_part.hash();
                     if received_part.hash().as_ref()
                         == received_part.descriptor().content_description()
                         && self.checkpoint.requested_part(received_part.descriptor())
@@ -1107,26 +1104,21 @@ where
                         accepted_descriptor.push(received_part.descriptor().clone());
                         accepted_parts.push(Arc::new(ReadOnly::new(received_part.clone())));
                     }
-                });
+                }
 
-                let _ = self.checkpoint.write_parts(accepted_parts.to_vec());
+                let _ = self.checkpoint.write_parts(accepted_parts);
 
+               
                 if !self.checkpoint.req_parts.is_empty() {
                     //remove the parts that we accepted
                     self.checkpoint
                         .req_parts
                         .retain(|part, _| !accepted_descriptor.contains(part));
                 }
-
-                /*     println!(
-                    "time to validate fragment {:?} number of parts {:?}",
-                    time.elapsed(),
-                    state.st_frag.len()
-                );*/
-
-                let i = i + 1;
+                 let i = i + 1;
 
                 self.curr_timeout = self.base_timeout;
+
                 let mut targets = self.checkpoint.targets.lock().unwrap();
                 if i == targets.len() {
                     self.phase = ProtoPhase::Init;
@@ -1197,7 +1189,6 @@ where
             cst_seq
         );
 
-
         self.timeouts
             .timeout_cst_request(self.curr_timeout, view.quorum() as u32, cst_seq);
 
@@ -1214,15 +1205,14 @@ where
             .iter()
             .map(|part| part.key().clone())
             .collect::<Box<_>>();
-        
+
         print!("Requesting state parts {:?}\n", parts_list.len());
 
         let parts_map = split_evenly(&parts_list, targets.len()).map(|r| {
             r.into_iter()
                 .map(|part| part.as_ref().clone())
                 .collect::<Vec<_>>()
-        }); 
-
+        });
 
         for (p, n) in parts_map.zip(targets.iter()) {
             //  debug!("requesting {:?} parts to node {:?}", p.len(), n);
@@ -1255,15 +1245,18 @@ where
 
         let start_install = Instant::now();
 
-        let parts = self.checkpoint.descriptor_parts();
+        let descriptor = self.checkpoint.descriptor_parts();
 
-        let (st_frag, size) = self.checkpoint.get_parts_by_ref(parts).unwrap();
+        for parts in split_evenly(&descriptor, INSTALL_ITERATIONS) {
+            // info!("{:?} // Installing parts {:?}", self.node.id(),state_desc);
+            let (st_frag, size) = self.checkpoint.get_parts_by_ref(parts.to_vec()).unwrap();
 
-        metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
+            metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
 
-        self.install_channel
-            .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
-            .unwrap();
+            self.install_channel
+                .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
+                .unwrap();
+        }
 
         self.install_channel
             .send(InstallStateMessage::Done)
