@@ -907,7 +907,7 @@ where
             message.sequence_number(),
             MessageKind::ReplyStateDescriptor(Some((self.checkpoint.get_seqno(), state.clone()))),
         );
-        println!("replying with descriptor {:?}");
+        println!("replying with descriptor {:?}",reply);
         self.node.send(reply, header.from(), true).unwrap();
     }
 
