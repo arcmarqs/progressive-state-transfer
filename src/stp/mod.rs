@@ -292,12 +292,17 @@ where
             .cloned()
     }
 
-    pub fn update_descriptor(&self, descriptor: S::StateDescriptor) {
+    pub fn update_descriptor(&self, descriptor: Option<S::StateDescriptor>) {
        
-            println!("WRITING STATE DESCRIPTOR TO STORAGE {:?}", &descriptor);
-        if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
-            println!("error updating descriptor");
-            error!("could not update descriptor");
+        println!("WRITING STATE DESCRIPTOR TO STORAGE {:?}", &descriptor);
+        if let Some(descriptor) = descriptor {
+            if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
+                println!("error updating descriptor");
+                error!("could not update descriptor");
+            }
+        } else {
+            info!("setting descriptor do None");
+            println!("settinf descriptor to none");
         }
     }
 }
@@ -579,7 +584,7 @@ where
                     ));
                 } else {
                     println!("Descriptor mismatch, requesting state");
-                    self.checkpoint.update_descriptor(Some(descriptor));
+                    self.checkpoint.update_descriptor(descriptor);
 
                     self.checkpoint.get_req_parts();
 
@@ -1395,7 +1400,7 @@ where
                 seq_no.next()
             );
             self.checkpoint.update_seqno(seq_no);
-            self.checkpoint.update_descriptor(desc);
+            self.checkpoint.update_descriptor(Some(desc));
         }
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
