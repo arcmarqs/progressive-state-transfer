@@ -174,6 +174,7 @@ where
     pub fn update_seqno(&self, seq: SeqNo) {
         let mut lock = self.seqno.lock().expect("failed to update seqno");
         *lock = seq;
+        println!("seqno updated to {:?}", lock);
     }
 
     fn read_local_part(
@@ -291,12 +292,12 @@ where
             .cloned()
     }
 
-    pub fn update_descriptor(&self, descriptor: Option<S::StateDescriptor>) {
-        if let Some(descriptor) = descriptor {
-            if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
-                println!("error updating descriptor");
-                error!("could not update descriptor");
-            }
+    pub fn update_descriptor(&self, descriptor: S::StateDescriptor) {
+       
+            println!("WRITING STATE DESCRIPTOR TO STORAGE {:?}", &descriptor);
+        if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
+            println!("error updating descriptor");
+            error!("could not update descriptor");
         }
     }
 }
@@ -1388,13 +1389,13 @@ where
             );
 
               println!(
-                "{:?} // new checkpoint desc{:?}, seqno {:?}",
+                "{:?} // new checkpoint desc {:?}, seqno {:?}",
                 self.node.id(),
                 &desc.get_digest(),
                 seq_no.next()
             );
             self.checkpoint.update_seqno(seq_no);
-            self.checkpoint.update_descriptor(Some(desc));
+            self.checkpoint.update_descriptor(desc);
         }
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
