@@ -168,7 +168,9 @@ where
     }
 
     pub fn get_seqno(&self) -> SeqNo {
-        self.seqno.lock().expect("failed to acquire lock").clone()
+        let res = self.seqno.lock().expect("failed to acquire lock").clone();
+        println!("GET SEQNO RESULT: {:?}", res);
+        res
     }
 
     pub fn update_seqno(&self, seq: SeqNo) {
@@ -299,6 +301,9 @@ where
             if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
                 println!("error updating descriptor");
                 error!("could not update descriptor");
+            }
+            else {
+                println!("Descriptor was written");
             }
         } else {
             info!("setting descriptor do None");
