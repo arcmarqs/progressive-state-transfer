@@ -584,7 +584,7 @@ where
                     ));
                 } else {
                     println!("Descriptor mismatch, requesting state");
-                    self.checkpoint.update_descriptor(descriptor);
+                    self.checkpoint.update_descriptor(Some(descriptor));
 
                     self.checkpoint.get_req_parts();
 
