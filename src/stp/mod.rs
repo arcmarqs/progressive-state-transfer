@@ -297,17 +297,13 @@ where
     pub fn update_descriptor(&self, descriptor: Option<S::StateDescriptor>) {
        
         if let Some(descriptor) = descriptor {
-            println!("WRITING STATE DESCRIPTOR TO STORAGE {:?}", &descriptor.get_digest());
             if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
                 println!("error updating descriptor");
                 error!("could not update descriptor");
             }
-            else {
-                println!("Descriptor was written");
-            }
         } else {
             info!("setting descriptor do None");
-            println!("settinf descriptor to none");
+            println!("setting descriptor to none");
         }
     }
 }
