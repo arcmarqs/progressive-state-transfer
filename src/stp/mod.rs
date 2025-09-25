@@ -212,7 +212,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         });
 
         let binding = self.parts.get_all(batch).expect("failed to get all parts");
-        let parts = split_evenly(&binding, 12);
+        let parts = split_evenly(&binding, 4);
 
         pool.scoped(|scope| {
 
@@ -294,7 +294,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     pub fn get_req_parts(&self, pool: &mut Pool) {
         let desc_parts = self.descriptor_parts();
-        let split = split_evenly(&desc_parts, 12);
+        let split = split_evenly(&desc_parts, 4);
 
         pool.scoped(|scope| {
             split.for_each(|chunk| {
@@ -1165,7 +1165,7 @@ where
 
              //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
-                let frags = split_evenly(&state.st_frag, 12);
+                let frags = split_evenly(&state.st_frag, 4);
 
                 self.threadpool.scoped(|scope| {
                    // let time = Instant::now();
@@ -1342,7 +1342,7 @@ where
         let start_install = Instant::now();
 
         let parts = self.checkpoint.descriptor_parts();
-        let state_frags = split_evenly(&parts, INSTALL_ITERATIONS);
+        let state_frags = split_evenly(&parts, 16);
 
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
@@ -1450,16 +1450,7 @@ where
 
        // let time = Instant::now();
         if !parts.is_empty() {
-            let part_split = split_evenly(&parts, 12);
-            self.threadpool.scoped(|scope| {
-                part_split.for_each(|chunk| {
-                    let handle = self.checkpoint.clone();
-
-                    scope.execute(move || {
-                        handle.write_parts(chunk.into()).unwrap();
-                    })
-                })
-            });
+           self.checkpoint.write_parts(parts.into_boxed_slice())?;
         }
        // println!("Checkpoint Installed {:?}", time.elapsed());
         Ok(())
