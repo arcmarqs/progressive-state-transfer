@@ -294,8 +294,8 @@ where
 
     pub fn update_descriptor(&self, descriptor: Option<S::StateDescriptor>) {
        
-        println!("WRITING STATE DESCRIPTOR TO STORAGE {:?}", &descriptor);
         if let Some(descriptor) = descriptor {
+            println!("WRITING STATE DESCRIPTOR TO STORAGE {:?}", &descriptor.get_digest());
             if self.parts.write_descriptor(OperationMode::NonBlockingSync(Some(())), descriptor).is_err(){
                 println!("error updating descriptor");
                 error!("could not update descriptor");
