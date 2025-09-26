@@ -1142,9 +1142,6 @@ where
                             descriptor.1.get_digest()
                         );
 
-
-                        println!("STATISTICS RECEIVING DESCRIPTOR {:?}, {:?}",i, self.checkpoint.statistics());
-
                         return StStatus::StateDescriptor(descriptor.1.clone());
                     }
                 }
@@ -1171,21 +1168,23 @@ where
                 }
             }
             ProtoPhase::ReceivingState(i) => {
+             
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
-
-                println!("STATISTICS BEFORE STATE PORTION {:?}, {:?}",i, self.checkpoint.statistics());
-
 
                 if message.sequence_number() != self.curr_seq {
                     // NOTE: check comment above, on ProtoPhase::ReceivingCid
                     return StStatus::Running;
                 }
 
+                let file_name = format!("dhat-heap-{}.json",i);
+                let _profiler = dhat::ProfilerBuilder::file_name(self, file_name);
+
                 let state = match message.take_state() {
                     Some(state) => state,
                     // drop invalid message kinds
                     None => return StStatus::Running,
                 };
+
                 let state_seq = state.seq;
 
                 drop(message);
@@ -1236,8 +1235,6 @@ where
                 let i = i + 1;
 
 
-                println!("STATISTICS AFTER STATE PORTION {:?}, {:?}",i, self.checkpoint.statistics());
-
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
                 if i == targets.len() {
@@ -1260,6 +1257,7 @@ where
 
                 self.phase = ProtoPhase::ReceivingState(i);
 
+                drop(_profiler);
                 StStatus::Running
             }
         }

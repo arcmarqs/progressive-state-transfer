@@ -21,6 +21,7 @@ capnp = "0.16.0"
 konst = "0.3.4"
 libc = "*"
 nolock = "0.3"
+dhat= "0.3"
 chrono = "0.4"
 mimalloc = { version = "*", default-features = false }
 fastrand = "1.7.0"
