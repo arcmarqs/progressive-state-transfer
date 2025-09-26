@@ -725,7 +725,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(2);
+        let tp = Pool::new(1);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
         // checkpoint.statistics();
 
