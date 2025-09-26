@@ -52,7 +52,7 @@ pub enum MessageKind<S:DivisibleState> {
     ReplyLatestSeq(Option<(SeqNo,Digest)>),
     RequestStateDescriptor,
     ReplyStateDescriptor(Option<(SeqNo,S::StateDescriptor)>),
-    ReqState(Box<[S::PartDescription]>),
+    ReqState(Vec<S::PartDescription>),
     ReplyState(RecoveryState<S>),
 }
 
@@ -77,7 +77,7 @@ impl<S> StMessage<S> where S: DivisibleState {
 
     /// Takes the recovery state embedded in this cst message, if it is available.
     pub fn take_state(&mut self) -> Option<RecoveryState<S>> {
-        let kind = std::mem::replace(&mut self.kind, MessageKind::ReqState(Box::new([])));
+        let kind = std::mem::replace(&mut self.kind, MessageKind::RequestLatestSeq);
         match kind {
             MessageKind::ReplyState(state) => Some(state),
             _ => {

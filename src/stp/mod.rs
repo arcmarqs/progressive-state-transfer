@@ -14,7 +14,7 @@ use regex::Replacer;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
-use std::mem;
+use std::{mem, thread};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -950,7 +950,7 @@ where
             }),
         );
 
-        self.node.send(reply, header.from(), true).unwrap();
+        self.node.send(reply, header.from(), false).unwrap();
         metric_duration(PROCESS_REQ_STATE_TIME_ID, start.elapsed());
         println!("process req state finished {:?}", start.elapsed());
     }
@@ -1119,7 +1119,7 @@ where
                     Some(descriptor) => descriptor,
                     None => return StStatus::Running,
                 };
-
+                drop(message);
                 let desc_digest = descriptor.1.get_digest().unwrap();
 
                 if let Some(voters) = self
@@ -1167,7 +1167,7 @@ where
                 }
             }
             ProtoPhase::ReceivingState(i) => {
-                let (header, mut message) = getmessage!(progress, StStatus::ReqState);
+                let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
 
                 if message.sequence_number() != self.curr_seq {
                     // NOTE: check comment above, on ProtoPhase::ReceivingCid
@@ -1179,6 +1179,8 @@ where
                     // drop invalid message kinds
                     None => return StStatus::Running,
                 };
+
+                drop(message);
 
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
@@ -1319,9 +1321,10 @@ where
 
         for (p, n) in parts_map.zip(targets.iter()) {
             //  debug!("requesting {:?} parts to node {:?}", p.len(), n);
-            let message = StMessage::new(cst_seq, MessageKind::ReqState(p.into_boxed_slice()));
+            let message = StMessage::new(cst_seq, MessageKind::ReqState(p));
 
             self.node.send(message, *n, false)?;
+            thread::sleep(Duration::from_secs(2));
         }
 
         // let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
