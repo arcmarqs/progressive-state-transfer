@@ -1179,6 +1179,7 @@ where
                     // drop invalid message kinds
                     None => return StStatus::Running,
                 };
+                let state_seq = state.seq;
 
                 drop(message);
 
@@ -1192,7 +1193,6 @@ where
                         scope.execute(|| {
                             let checkpoint_handle = self.checkpoint.clone();
                             let mut accepted_descriptor = Vec::new();
-
                             frag.iter().for_each(|received_part| {
                                 //   debug!("received part  {:?}", received_part.descriptor());
 
@@ -1207,6 +1207,7 @@ where
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     let _ = checkpoint_handle.write_part(received_part);
                                 }
+
                             });
 
                             if !checkpoint_handle.req_parts.is_empty() {
@@ -1225,6 +1226,8 @@ where
                     );*/
                 });
 
+                drop(state);
+
                 let i = i + 1;
 
                 self.curr_timeout = self.base_timeout;
@@ -1234,8 +1237,8 @@ where
 
                     targets.clear();
                     return if self.checkpoint.req_parts.is_empty() {
-                        println!("state transfer complete seq: {:?}", state.seq);
-                        StStatus::StateComplete(state.seq)
+                        println!("state transfer complete seq: {:?}", state_seq);
+                        StStatus::StateComplete(state_seq)
                     } else {
                         // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
                         // where we assume our state is wrong, therefore out descriptor is wrong
@@ -1324,7 +1327,6 @@ where
             let message = StMessage::new(cst_seq, MessageKind::ReqState(p));
 
             self.node.send(message, *n, false)?;
-            thread::sleep(Duration::from_secs(2));
         }
 
         // let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
