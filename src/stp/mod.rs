@@ -1177,7 +1177,7 @@ where
                 }
 
                 let file_name = format!("dhat-heap-{}.json",i);
-                let _profiler = dhat::ProfilerBuilder::file_name(self, file_name);
+                let _profiler = dhat::Profiler::builder().file_name(file_name).build();
 
                 let state = match message.take_state() {
                     Some(state) => state,
