@@ -174,7 +174,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         }
     }
 
-    fn write_parts(&self, parts: Box<[S::StatePart]>) -> Result<()> {
+    fn write_parts(&self, parts: Vec<S::StatePart>) -> Result<()> {
         let batch = parts.iter().map(|part| {
             (
                 part.id(),
@@ -183,6 +183,22 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         });
 
         let _ = self.parts.set_all(STATE, batch);
+
+       /*  for part in parts.iter() {
+            debug!("writing part {:?}", part.size());
+           let res = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
+
+           if res.is_err() {
+            debug!("ERROR WRITING PARTS {:?}", res.unwrap_err());
+           }
+    }*/
+        Ok(())
+    }
+
+    fn write_part(&self, part: &S::StatePart)-> Result<()> {
+       
+
+        let _ = self.parts.set(STATE, part.id(), bincode::serialize(part));
 
        /*  for part in parts.iter() {
             debug!("writing part {:?}", part.size());
@@ -1169,12 +1185,9 @@ where
 
                 self.threadpool.scoped(|scope| {
                    // let time = Instant::now();
-
                     frags.for_each(|frag| {
                         scope.execute(|| {
-
                             let checkpoint_handle = self.checkpoint.clone();
-                            let mut accepted_parts = Vec::new();
                             let mut accepted_descriptor = Vec::new();
 
                             frag.iter().for_each(|received_part| {
@@ -1189,12 +1202,9 @@ where
                                     && checkpoint_handle.requested_part(received_part.descriptor())
                                 {
                                     accepted_descriptor.push(received_part.descriptor().clone());
-                                    accepted_parts.push(received_part.clone());
+                                    let _ = checkpoint_handle.write_part(received_part);
                                 } 
                             });
-
-                            let _ =
-                                checkpoint_handle.write_parts(accepted_parts.into_boxed_slice());
 
                             if !checkpoint_handle.req_parts.is_empty() {
                                 //remove the parts that we accepted
@@ -1211,9 +1221,6 @@ where
                         state.st_frag.len()
                     );*/
                 });
-
-
-                
 
                 let i = i + 1;
 
@@ -1342,7 +1349,7 @@ where
         let start_install = Instant::now();
 
         let parts = self.checkpoint.descriptor_parts();
-        let state_frags = split_evenly(&parts, 16);
+        let state_frags = split_evenly(&parts, 32);
 
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
@@ -1450,7 +1457,7 @@ where
 
        // let time = Instant::now();
         if !parts.is_empty() {
-           self.checkpoint.write_parts(parts.into_boxed_slice())?;
+           self.checkpoint.write_parts(parts)?;
         }
        // println!("Checkpoint Installed {:?}", time.elapsed());
         Ok(())
