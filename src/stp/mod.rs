@@ -1225,9 +1225,7 @@ where
                         state.st_frag.len()
                     );*/
                 });
-
                 drop(state);
-
                 let i = i + 1;
 
                 self.curr_timeout = self.base_timeout;
@@ -1356,7 +1354,7 @@ where
 
         let parts = self.checkpoint.descriptor_parts();
         let state_frags = split_evenly(&parts, 16);
-
+        println!("installing {:?} parts", parts.len());
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
                 if !frag.is_empty() {
@@ -1364,7 +1362,7 @@ where
                         let (st_frag, size) = self.checkpoint.get_parts_by_ref(frag).unwrap();
 
                         metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
-
+                        println!("sending state parts");
                         self.install_channel
                             .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
                             .unwrap();
