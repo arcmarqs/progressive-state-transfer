@@ -52,7 +52,7 @@ pub mod metrics;
 
 const INSTALL_ITERATIONS: usize = 12;
 
-const STATE: &'static str = "state";
+const STATE: &str = "state";
 
 // Split a slice into n slices, modified from https://users.rust-lang.org/t/how-to-split-a-slice-into-n-chunks/40008/5
 fn split_evenly<T>(slice: &[T], n: usize) -> impl Iterator<Item = &[T]> {
@@ -63,7 +63,7 @@ fn split_evenly<T>(slice: &[T], n: usize) -> impl Iterator<Item = &[T]> {
     impl<'a, I> Iterator for Iter<'a, I> {
         type Item = &'a [I];
         fn next(&mut self) -> Option<&'a [I]> {
-            if self.slice.len() == 0 {
+            if self.slice.is_empty() {
                 return None;
             }
 
@@ -139,7 +139,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn descriptor_parts(&self) -> Vec<Arc<S::PartDescription>> {
         let desc = self.descriptor.read().unwrap();
         match desc.as_ref() {
-            Some(d) => d.parts().iter().cloned().collect::<Vec<_>>(),
+            Some(d) => d.parts().to_vec(),
             None => vec![],
         }
     }
@@ -152,7 +152,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     pub fn get_seqno(&self) -> SeqNo {
-        self.seqno.lock().expect("failed to acquire lock").clone()
+        *self.seqno.lock().expect("failed to acquire lock")
     }
 
     pub fn update_seqno(&self, seq: SeqNo) {
@@ -241,9 +241,9 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                         let state_part = match part.as_ref().expect("invalid part") {
                             Some(buf) => {
                                 //       debug!("has actual part");
-                                let res = bincode::deserialize::<S::StatePart>(buf)
-                                    .expect("failed to deserialize part");
-                                res
+                                
+                                bincode::deserialize::<S::StatePart>(buf)
+                                    .expect("failed to deserialize part")
                             }
                             None => {
                                 //   debug!("part is empty");
@@ -257,7 +257,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     vec_handle
                         .lock()
                         .expect("failed to lock")
-                        .extend(local_vec.into_iter());
+                        .extend(local_vec);
                 });
             });
         });
@@ -290,7 +290,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                     let res = bincode::deserialize::<S::StatePart>(&buf)
                         .expect("failed to deserialize part");
 
-                    size = size + res.size() as u64;
+                    size += res.size() as u64;
                     res
                     /*  if self.contains_part(res.descriptor()).is_some() {
                         res
@@ -365,11 +365,8 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
             "Resident set size: {:.2} MB",
             rss_bytes as f64 / (1024.0 * 1024.0)
         );
-        match self.descriptor() {
-            Some(desc) => {
-                println!("descriptor {:?}", desc.parts().len());
-            }
-            None => (),
+        if let Some(desc) = self.descriptor() {
+            println!("descriptor {:?}", desc.parts().len());
         }
 
         self.parts.get_properties();
@@ -471,6 +468,7 @@ where
     phase: ProtoPhase<S>,
     threadpool: Pool,
     received_state_ids: BTreeMap<(SeqNo, Digest), Vec<NodeId>>,
+    message_list: Vec<(NodeId,StMessage<S>)>,
     // received_state_descriptor: HashMap<SeqNo, S::StateDescriptor>,
     install_channel: ChannelSyncTx<InstallStateMessage<S>>,
 
@@ -640,7 +638,7 @@ where
             StStatus::ReqState => {
                 metric_store_count(TOTAL_STATE_TRANSFERED_ID, 0);
 
-                self.request_latest_state_parts(view)?;
+                self.request_latest_state(view)?;
             }
             StStatus::RequestStateDescriptor => self.request_state_descriptor(view),
             StStatus::StateDescriptor(descriptor) => {
@@ -664,6 +662,13 @@ where
                     }
 
                     self.request_latest_state_parts(view)?;
+
+                    
+                    let (node, next_message) = self.message_list.pop().unwrap();
+                    self.node.send(next_message, node, false)?;
+
+                    self.phase = ProtoPhase::ReceivingState(0);
+
                 }
             }
             StStatus::StateComplete(_seq) => {
@@ -693,7 +698,7 @@ where
     {
         for cst_seq in timeout {
             if let TimeoutKind::Cst(cst_seq) = cst_seq.timeout_kind() {
-                if self.cst_request_timed_out(cst_seq.clone(), view.clone()) {
+                if self.cst_request_timed_out(*cst_seq, view.clone()) {
                     return Ok(STTimeoutResult::RunCst);
                 }
             }
@@ -744,6 +749,7 @@ where
             received_state_ids: BTreeMap::default(),
             new_descriptor: None,
             threadpool: tp,
+            message_list: vec![],
         }
     }
 
@@ -877,7 +883,9 @@ where
 
             for request in reqs {
                 // We only want to reply to the most recent requests from each of the nodes
-                if map.contains_key(&request.header().from()) {
+                if let std::collections::hash_map::Entry::Vacant(e) = map.entry(request.header().from()) {
+                    e.insert(request);
+                } else {
                     map.entry(request.header().from()).and_modify(|x| {
                         if x.message().sequence_number() < request.message().sequence_number() {
                             //Dispose of the previous request
@@ -886,8 +894,6 @@ where
                     });
 
                     continue;
-                } else {
-                    map.insert(request.header().from(), request);
                 }
             }
 
@@ -1094,7 +1100,7 @@ where
                 if i == view.quorum() && voters.len() >= i {
                     self.phase = ProtoPhase::Init;
 
-                    self.largest_cid = largest.0.clone();
+                    self.largest_cid = largest.0;
 
                     // reset timeout, since req was successful
                     self.curr_timeout = self.base_timeout;
@@ -1132,7 +1138,7 @@ where
 
                     if voters.len() >= view.quorum() {
                         let mut lock = self.checkpoint.targets.lock().unwrap();
-                        *lock = voters.clone().into();
+                        *lock = voters.clone();
                         self.curr_timeout = self.base_timeout;
                         self.phase = ProtoPhase::Init;
                         self.received_state_ids.clear();
@@ -1175,9 +1181,6 @@ where
                     // NOTE: check comment above, on ProtoPhase::ReceivingCid
                     return StStatus::Running;
                 }
-
-                let file_name = format!("dhat-heap-{}.json",i);
-                let _profiler = dhat::Profiler::builder().file_name(file_name).build();
 
                 let state = match message.take_state() {
                     Some(state) => state,
@@ -1255,9 +1258,10 @@ where
                     };
                 }
 
+                let (node, next_message) = self.message_list.pop().unwrap();
+                self.node.send(next_message, node, false).expect("Failed to send message");
                 self.phase = ProtoPhase::ReceivingState(i);
 
-                drop(_profiler);
                 StStatus::Running
             }
         }
@@ -1310,8 +1314,6 @@ where
         self.timeouts
             .timeout_cst_request(self.curr_timeout, view.quorum() as u32, cst_seq);
 
-        self.phase = ProtoPhase::ReceivingState(0);
-
         //TODO: Maybe attempt to use followers to rebuild state and avoid
         // Overloading the replicas
 
@@ -1323,7 +1325,7 @@ where
             .map(|part| part.key().clone())
             .collect::<Box<_>>();
         let parts_map = split_evenly(&parts_list, targets.len()).map(|r| {
-            r.into_iter()
+            r.iter()
                 .map(|part| part.as_ref().clone())
                 .collect::<Vec<_>>()
         });
@@ -1331,10 +1333,8 @@ where
         for (p, n) in parts_map.zip(targets.iter()) {
             //  debug!("requesting {:?} parts to node {:?}", p.len(), n);
             let message = StMessage::new(cst_seq, MessageKind::ReqState(p));
-
-            self.node.send(message, *n, false)?;
+            self.message_list.push((*n,message));
         }
-
         // let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
 
         Ok(())
