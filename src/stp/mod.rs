@@ -468,7 +468,9 @@ where
     phase: ProtoPhase<S>,
     threadpool: Pool,
     received_state_ids: BTreeMap<(SeqNo, Digest), Vec<NodeId>>,
-    message_list: Vec<(NodeId,StMessage<S>)>,
+    message_list: Vec<(NodeId,Vec<S::PartDescription>)>,
+    sending_message: Bool,
+    cur_message: Vec<S::PartDescription>,
     // received_state_descriptor: HashMap<SeqNo, S::StateDescriptor>,
     install_channel: ChannelSyncTx<InstallStateMessage<S>>,
 
@@ -663,10 +665,6 @@ where
 
                     self.request_latest_state_parts(view)?;
 
-                    
-                    let (node, next_message) = self.message_list.pop().unwrap();
-                    self.node.send(next_message, node, false)?;
-
                     self.phase = ProtoPhase::ReceivingState(0);
 
                 }
@@ -750,6 +748,8 @@ where
             new_descriptor: None,
             threadpool: tp,
             message_list: vec![],
+            sending_message: false,
+            cur_message: vec![],
         }
     }
 
@@ -1174,7 +1174,18 @@ where
                 }
             }
             ProtoPhase::ReceivingState(i) => {
-             
+                if !self.sending_message {
+
+                    println!("requesting state {:?}", i);
+
+                    let (node, next_messages) = self.message_list.pop().unwrap();
+                    let vecs = split_evenly(&next_messages, 4).collect::<Vec<_>>();
+                    self.cur_message
+                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState());
+                    self.node.send(message, node, false).expect("Failed to send message");
+
+                }
+              
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
 
                 if message.sequence_number() != self.curr_seq {
@@ -1191,7 +1202,7 @@ where
                 let state_seq = state.seq;
 
                 drop(message);
-
+            
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
                 let frags = split_evenly(&state.st_frag, 4);
@@ -1235,6 +1246,7 @@ where
                     );*/
                 });
                 drop(state);
+        
                 let i = i + 1;
 
 
@@ -1258,8 +1270,7 @@ where
                     };
                 }
 
-                let (node, next_message) = self.message_list.pop().unwrap();
-                self.node.send(next_message, node, false).expect("Failed to send message");
+                
                 self.phase = ProtoPhase::ReceivingState(i);
 
                 StStatus::Running
@@ -1332,8 +1343,7 @@ where
 
         for (p, n) in parts_map.zip(targets.iter()) {
             //  debug!("requesting {:?} parts to node {:?}", p.len(), n);
-            let message = StMessage::new(cst_seq, MessageKind::ReqState(p));
-            self.message_list.push((*n,message));
+            self.message_list.push((*n,p));
         }
         // let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
 
