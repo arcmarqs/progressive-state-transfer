@@ -1245,6 +1245,7 @@ where
             }
             ProtoPhase::ReceivingState(i) => {
                 metric_store_count(TOTAL_STATE_INSTALLED_ID, 0);
+                self.phase = ProtoPhase::ReceivingState(i);
 
                 // If there are no messages to send to a replica
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
@@ -1340,8 +1341,6 @@ where
                         StStatus::ReqLatestCid
                     };
                 }
-
-                self.phase = ProtoPhase::ReceivingState(i);
 
                 if !self.cur_message.is_empty() {
                     println!("requesting more state from {:?}", self.cur_target);
