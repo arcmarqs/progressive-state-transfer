@@ -1489,7 +1489,7 @@ where
 
     fn finish_install_state(&mut self) -> Result<STResult> {
 
-        println!("finished state transfer parts left {:?} {:?} {:?}", self.cur_message.len(), self.message_list.len(), self.checkpoint.ready_to_install.lock().unwrap().len())
+        println!("finished state transfer parts left {:?} {:?} {:?}", self.cur_message.len(), self.message_list.len(), self.checkpoint.ready_to_install.lock().unwrap().len());
          self.install_channel
             .send(InstallStateMessage::Done)
             .unwrap();
