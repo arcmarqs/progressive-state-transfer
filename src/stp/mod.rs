@@ -1470,7 +1470,6 @@ where
                 if !frag.is_empty() {
                     scope.execute(|| {
                         let (st_frag, size) = self.checkpoint.get_parts(frag).unwrap();
-
                         metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
                         let res = self.install_channel
                             .send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
@@ -1489,6 +1488,8 @@ where
     }
 
     fn finish_install_state(&mut self) -> Result<STResult> {
+
+        println!("finished state transfer parts left {:?} {:?} {:?}", self.cur_message.len(), self.message_list.len(), self.checkpoint.ready_to_install.lock().unwrap().len())
          self.install_channel
             .send(InstallStateMessage::Done)
             .unwrap();
