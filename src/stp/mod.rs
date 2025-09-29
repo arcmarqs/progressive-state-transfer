@@ -1247,7 +1247,6 @@ where
             ProtoPhase::ReceivingState(i) => {
                 // If there are no messages to send to a replica
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
-                let mut i = i;
                 if self.cur_message.is_empty() && !self.message_list.is_empty() {
                     println!("requesting state {:?} to {:?}", i, self.cur_target);
                     let (node, next_messages) = self.message_list.pop().unwrap();
@@ -1341,6 +1340,8 @@ where
                     };
                 }
 
+                self.phase = ProtoPhase::ReceivingState(i);
+
                 if !self.cur_message.is_empty() {
                     println!("requesting more state from {:?}", self.cur_target);
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
@@ -1355,27 +1356,14 @@ where
                     self.cur_target = node;
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
-                    i += 1;
+
+                    self.phase = ProtoPhase::ReceivingState(i+1);
+
                 } else if self.message_list.is_empty() && self.cur_message.is_empty() {
-                    self.phase = ProtoPhase::Init;
-                    targets.clear();
+                    self.phase = ProtoPhase::ReceivingState(i+1);
 
-                    println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
-                    return if self.checkpoint.req_parts.is_empty() {
-                        println!("state transfer complete seq: {:?}", state_seq);
-                        StStatus::StateComplete(state_seq)
-                    } else {
-                        // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
-                        // where we assume our state is wrong, therefore out descriptor is wrong
-                        info!("state transfer did not complete");
-
-                        self.checkpoint.update_descriptor(None);
-
-                        StStatus::ReqLatestCid
-                    };
                 }
-
-                self.phase = ProtoPhase::ReceivingState(i);
+                
 
                 StStatus::Running
             }
