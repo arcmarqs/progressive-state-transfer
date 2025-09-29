@@ -561,6 +561,7 @@ where
         }
 
         let status = self.process_message_inner(view, StProgress::Message(header, st_message));
+        println!("Result of process message inner {:?}", status);
 
         match status {
             StStatus::Nil => (),
@@ -616,6 +617,8 @@ where
             .received_cst_request(header.from(), message.sequence_number());
 
         let status = self.process_message_inner(view.clone(), StProgress::Message(header, message));
+
+        println!("Result of process message inner {:?}", status);
 
         match status {
             StStatus::Nil => (),
