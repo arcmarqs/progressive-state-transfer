@@ -1177,6 +1177,7 @@ where
             }
             ProtoPhase::ReceivingState(i) => {
                 // If there are no messages to send to a replica
+                println!("receiving state {:?} {:?}", i, self.cur_message.len());
                 if self.cur_message.is_empty() && !self.sending_message {
                     println!("requesting state {:?} to {:?}", i, self.cur_target);
                     let (node, next_messages) = self.message_list.pop().unwrap();
