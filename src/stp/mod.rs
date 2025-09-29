@@ -1366,11 +1366,16 @@ where
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
 
-                    self.phase = ProtoPhase::ReceivingState(i+1);
+                    let i = i + 1;
+                    println!("Increase phase");
+                    self.phase = ProtoPhase::ReceivingState(i);
                     return StStatus::Running;
 
                 } else if self.message_list.is_empty() && self.cur_message.is_empty() {
-                    self.phase = ProtoPhase::ReceivingState(i+1);
+                    let i = i + 1;
+                    println!("Increase phase");
+                    self.phase = ProtoPhase::ReceivingState(i);
+                    
                     if !self.checkpoint.req_parts.is_empty() {
                     return StStatus::StateComplete(state_seq);
                     }
