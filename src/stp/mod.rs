@@ -469,8 +469,9 @@ where
     threadpool: Pool,
     received_state_ids: BTreeMap<(SeqNo, Digest), Vec<NodeId>>,
     message_list: Vec<(NodeId,Vec<S::PartDescription>)>,
-    sending_message: Bool,
-    cur_message: Vec<S::PartDescription>,
+    sending_message: bool,
+    cur_target: NodeId,
+    cur_message: Vec<Vec<S::PartDescription>>,
     // received_state_descriptor: HashMap<SeqNo, S::StateDescriptor>,
     install_channel: ChannelSyncTx<InstallStateMessage<S>>,
 
@@ -750,6 +751,7 @@ where
             message_list: vec![],
             sending_message: false,
             cur_message: vec![],
+            cur_target: id,
         }
     }
 
@@ -1174,18 +1176,18 @@ where
                 }
             }
             ProtoPhase::ReceivingState(i) => {
-                if !self.sending_message {
-
-                    println!("requesting state {:?}", i);
-
+                // If there are no messages to send to a replica
+                if self.cur_message.is_empty() && !self.sending_message {
+                    println!("requesting state {:?} to {:?}", i, self.cur_target);
                     let (node, next_messages) = self.message_list.pop().unwrap();
-                    let vecs = split_evenly(&next_messages, 4).collect::<Vec<_>>();
-                    self.cur_message
-                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState());
-                    self.node.send(message, node, false).expect("Failed to send message");
+                    let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
+                    self.cur_message = vecs;
+                    self.sending_message = true;
+                    self.cur_target = node;
+                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
+                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
+                } 
 
-                }
-              
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
 
                 if message.sequence_number() != self.curr_seq {
@@ -1198,10 +1200,8 @@ where
                     // drop invalid message kinds
                     None => return StStatus::Running,
                 };
-
+                
                 let state_seq = state.seq;
-
-                drop(message);
             
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
@@ -1246,16 +1246,26 @@ where
                     );*/
                 });
                 drop(state);
-        
-                let i = i + 1;
+                let mut i = i;
 
+                if self.sending_message && !self.cur_message.is_empty() {
+                    println!("requesting more state from {:?}", self.cur_target);
+                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
+                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
+                } else if self.cur_message.is_empty() {
+                    // advance to next node
+                    println!("requesting to next node");
+                    self.sending_message = false;
+                    i += 1;
+                }
 
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
                 if i == targets.len() {
                     self.phase = ProtoPhase::Init;
-
                     targets.clear();
+
+                    println!("state transfer complete {:?} {:?} {:?}", self.cur_message.len(), self.sending_message, self.message_list.len());
                     return if self.checkpoint.req_parts.is_empty() {
                         println!("state transfer complete seq: {:?}", state_seq);
                         StStatus::StateComplete(state_seq)
@@ -1270,7 +1280,6 @@ where
                     };
                 }
 
-                
                 self.phase = ProtoPhase::ReceivingState(i);
 
                 StStatus::Running
