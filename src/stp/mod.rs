@@ -1178,6 +1178,7 @@ where
             ProtoPhase::ReceivingState(i) => {
                 // If there are no messages to send to a replica
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
+                let mut i = i;
                 if self.cur_message.is_empty() && !self.sending_message {
                     println!("requesting state {:?} to {:?}", i, self.cur_target);
                     let (node, next_messages) = self.message_list.pop().unwrap();
@@ -1187,7 +1188,12 @@ where
                     self.cur_target = node;
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
-                } 
+                } else if self.cur_message.is_empty() {
+                    // advance to next node
+                    println!("requesting to next node");
+                    self.sending_message = false;
+                    i += 1;
+                }
 
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
 
@@ -1247,17 +1253,11 @@ where
                     );*/
                 });
                 drop(state);
-                let mut i = i;
 
                 if self.sending_message && !self.cur_message.is_empty() {
                     println!("requesting more state from {:?}", self.cur_target);
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
-                } else if self.cur_message.is_empty() {
-                    // advance to next node
-                    println!("requesting to next node");
-                    self.sending_message = false;
-                    i += 1;
                 }
 
                 self.curr_timeout = self.base_timeout;
