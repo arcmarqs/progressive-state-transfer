@@ -9,11 +9,13 @@ use atlas_core::ordering_protocol::ExecutionResult;
 use atlas_core::state_transfer::networking::StateTransferSendNode;
 use atlas_smr_application::state;
 use futures::future::{ok, select};
+use konst::primitive::ParseIntResult;
 use konst::string::split;
 use regex::Replacer;
 use scoped_threadpool::Pool;
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
+use std::sync::atomic::AtomicBool;
 use std::{mem, thread};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -51,6 +53,7 @@ pub mod message;
 pub mod metrics;
 
 const INSTALL_ITERATIONS: usize = 12;
+const MAXIMUM_PARTS: usize = 256;
 
 const STATE: &str = "state";
 
@@ -92,7 +95,10 @@ struct PersistentCheckpoint<S: DivisibleState> {
     // used to track the state part's position in the persistent checkpoint
     // K = pageId V= Length
     parts: KVDB,
-    // list of parts we need in order to recover the state
+    //parts queued for installation
+    ready_to_install: Mutex<Vec<S::PartDescription>>,
+    // do we have all parts in the local checkpoint
+    // list of parts we need to request in order to recover the state
     req_parts: ConcurrentHashMap<Arc<S::PartDescription>, ()>,
 }
 
@@ -116,10 +122,11 @@ impl<S: DivisibleState> Default for PersistentCheckpoint<S> {
             req_parts: ConcurrentHashMap::default(),
             targets: Mutex::new(vec![]),
             parts: KVDB::new("checkpoint", vec![STATE]).unwrap(),
+            ready_to_install: Mutex::new(vec![]),
         }
     }
 }
-
+    
 impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn new(id: NodeId) -> Self {
         let path = format!("checkpoint_{:?}", id);
@@ -129,9 +136,24 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
             descriptor: RwLock::new(None),
             targets: Mutex::new(vec![]),
             parts: KVDB::new(path, vec![STATE]).unwrap(),
+            ready_to_install: Mutex::new(vec![]),
         }
     }
 
+    pub fn queue_for_install(&self, parts: Vec<S::PartDescription>) {
+        let mut lock = self.ready_to_install.lock().expect("failed to lock");
+        lock.extend(parts);
+    }
+
+    pub fn pop_install(&self) -> Option<Vec<S::PartDescription>> {
+        let mut lock = self.ready_to_install.lock().expect("failed to lock");
+        if lock.is_empty() {
+            None
+        } else {
+            Some(lock.drain(0..MAXIMUM_PARTS).collect())
+        }
+    }
+    
     pub fn descriptor(&self) -> Option<S::StateDescriptor> {
         self.descriptor.read().expect("failed to read").clone()
     }
@@ -139,7 +161,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     pub fn descriptor_parts(&self) -> Vec<Arc<S::PartDescription>> {
         let desc = self.descriptor.read().unwrap();
         match desc.as_ref() {
-            Some(d) => d.parts().to_vec(),
+            Some(d) => d.parts(),
             None => vec![],
         }
     }
@@ -209,7 +231,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         }*/
         Ok(())
     }
-    pub fn get_parts(
+    pub fn get_parts_mt(
         &self,
         parts_desc: &[S::PartDescription],
         pool: &mut Pool,
@@ -308,7 +330,47 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         Ok((vec, size))
     }
 
-    pub fn get_req_parts(&self, pool: &mut Pool) {
+    pub fn get_parts(
+        &self,
+        parts_desc: &[S::PartDescription],
+    ) -> Result<(Vec<S::StatePart>, u64)> {
+        // need to figure out what to do if the part read doesn't match the descriptor
+
+        let mut vec = Vec::new();
+        let mut size = 0;
+        let batch = parts_desc.iter().map(|part| {
+            //    debug!("writing part {:?}", part.id());
+            (STATE, part.id())
+        });
+
+        let parts = self.parts.get_all(batch).expect("failed to get all parts");
+
+        for part in parts {
+            let state_part = match part.expect("invalid part") {
+                Some(buf) => {
+                    let res = bincode::deserialize::<S::StatePart>(&buf)
+                        .expect("failed to deserialize part");
+
+                    size += res.size() as u64;
+                    res
+                    /*  if self.contains_part(res.descriptor()).is_some() {
+                        res
+                    } else {
+                        continue;
+                    }*/
+                }
+                None => continue,
+            };
+
+            // println!("{:?}", self.contains_part(state_part.descriptor()));
+            vec.push(state_part);
+        }
+
+        Ok((vec, size))
+    }
+
+
+    pub fn get_req_parts_mt(&self, pool: &mut Pool) {
         let desc_parts = self.descriptor_parts();
         let split = split_evenly(&desc_parts, 4);
 
@@ -322,7 +384,7 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
                         {
                             if part.content_description() == local_part.hash().as_ref() {
                                 // We've confirmed that this part is valid so we don't need to request it
-
+                                self.queue_for_install(vec![part.as_ref().clone()]);
                                 continue;
                             }
                         }
@@ -469,7 +531,6 @@ where
     threadpool: Pool,
     received_state_ids: BTreeMap<(SeqNo, Digest), Vec<NodeId>>,
     message_list: Vec<(NodeId,Vec<S::PartDescription>)>,
-    sending_message: bool,
     cur_target: NodeId,
     cur_message: Vec<Vec<S::PartDescription>>,
     // received_state_descriptor: HashMap<SeqNo, S::StateDescriptor>,
@@ -621,7 +682,11 @@ where
 
         match status {
             StStatus::Nil => (),
-            StStatus::Running => (),
+            StStatus::Running => {
+               if let Some(parts) = self.checkpoint.pop_install() {
+                    self.install_state(parts)?;
+                } 
+            },
             StStatus::ReqLatestCid => self.request_latest_consensus_seq_no(view),
             StStatus::SeqNo(seq) => {
                 return if self.checkpoint.get_seqno() < seq {
@@ -660,10 +725,11 @@ where
                 } else {
                     self.checkpoint.update_descriptor(Some(descriptor));
 
-                    self.checkpoint.get_req_parts(&mut self.threadpool);
+                    self.checkpoint.get_req_parts_mt(&mut self.threadpool);
 
                     if self.checkpoint.req_parts.is_empty() {
-                        return self.install_state();
+                        let parts = self.checkpoint.pop_install().unwrap();
+                        return self.install_state(parts);
                     }
 
                     self.request_latest_state_parts(view)?;
@@ -674,7 +740,7 @@ where
             }
             StStatus::StateComplete(_seq) => {
                 metric_duration_end(TOTAL_STATE_WAIT_ID);
-                return self.install_state();
+                return self.finish_install_state();
             }
         }
 
@@ -751,7 +817,6 @@ where
             new_descriptor: None,
             threadpool: tp,
             message_list: vec![],
-            sending_message: false,
             cur_message: vec![],
             cur_target: id,
         }
@@ -944,7 +1009,7 @@ where
                 debug!("received request state message");
                 let parts = req_parts.iter().as_slice();
                 self.checkpoint
-                    .get_parts(parts, &mut self.threadpool)
+                    .get_parts_mt(parts, &mut self.threadpool)
                     .unwrap()
             }
             _ => {
@@ -1241,6 +1306,7 @@ where
                                     .req_parts
                                     .retain(|part, _| !accepted_descriptor.contains(part));
                             }
+                            self.checkpoint.queue_for_install(accepted_descriptor);
                         });
                     });
 
@@ -1280,7 +1346,7 @@ where
                     self.phase = ProtoPhase::Init;
                     targets.clear();
 
-                    println!("state transfer complete {:?} {:?} {:?}", self.cur_message.len(), self.sending_message, self.message_list.len());
+                    println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
                     return if self.checkpoint.req_parts.is_empty() {
                         println!("state transfer complete seq: {:?}", state_seq);
                         StStatus::StateComplete(state_seq)
@@ -1380,7 +1446,7 @@ where
         self.curr_seq
     }
 
-    fn install_state(&mut self) -> Result<STResult> {
+    fn install_state(&mut self, parts: Vec<S::PartDescription>) -> Result<STResult> {
         println!("START INSTALL STATE");
         metric_store_count(TOTAL_STATE_INSTALLED_ID, 0);
 
@@ -1392,45 +1458,53 @@ where
 
         //descriptor.parts()
 
-        let start_install = Instant::now();
+        // let start_install = Instant::now();
 
-        let parts = self.checkpoint.descriptor_parts();
-        let state_frags = split_evenly(&parts, 16);
+        let state_frags = split_evenly(&parts, 4);
         println!("installing {:?} parts", parts.len());
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
                 if !frag.is_empty() {
                     scope.execute(|| {
-                        let (st_frag, size) = self.checkpoint.get_parts_by_ref(frag).unwrap();
+                        let (st_frag, size) = self.checkpoint.get_parts(frag).unwrap();
 
                         metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
                         println!("sending state parts {:?} size {:?}", st_frag.len(), size);
                         let res = self.install_channel
                             .send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
-
                         println!("send_res {:?}", res);
                     });
                 }
             });
         });
 
-        self.install_channel
+        if self.checkpoint.req_parts.is_empty() {
+            println!("all parts installed, finishing state transfer");
+            return self.finish_install_state();
+        } 
+
+        Ok(STResult::StateTransferReady)
+       
+    }
+
+    fn finish_install_state(&mut self) -> Result<STResult> {
+         self.install_channel
             .send(InstallStateMessage::Done)
             .unwrap();
 
         self.checkpoint.update_seqno(self.largest_cid);
         self.received_state_ids.clear();
 
-        metric_duration(
-            STATE_TRANSFER_STATE_INSTALL_CLONE_TIME_ID,
-            start_install.elapsed(),
-        );
+        // metric_duration(
+        //     STATE_TRANSFER_STATE_INSTALL_CLONE_TIME_ID,
+        //     start_install.elapsed(),
+        // );
         metric_duration_end(STATE_TRANSFER_TIME_ID);
 
         println!(
-            "state transfer finished {:?} {:?}",
+            "state transfer finished {:?}",
             self.checkpoint.get_seqno(),
-            start_install.elapsed()
+            // start_install.elapsed()
         );
 
         Ok(STResult::StateTransferFinished(self.checkpoint.get_seqno()))
