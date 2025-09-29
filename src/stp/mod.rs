@@ -1405,9 +1405,10 @@ where
 
                         metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
                         println!("sending state parts {:?} size {:?}", st_frag.len(), size);
-                        self.install_channel
-                            .send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
-                            .unwrap();
+                        let res = self.install_channel
+                            .send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
+
+                        println!("send_res {:?}", res);
                     });
                 }
             });
