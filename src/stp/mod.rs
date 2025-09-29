@@ -1318,6 +1318,29 @@ where
                 });
                 drop(state);
 
+
+                self.curr_timeout = self.base_timeout;
+                let mut targets = self.checkpoint.targets.lock().unwrap();
+
+                if i == targets.len() {
+                    self.phase = ProtoPhase::Init;
+                    targets.clear();
+
+                    println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
+                    return if self.checkpoint.req_parts.is_empty() {
+                        println!("state transfer complete seq: {:?}", state_seq);
+                        StStatus::StateComplete(state_seq)
+                    } else {
+                        // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
+                        // where we assume our state is wrong, therefore out descriptor is wrong
+                        info!("state transfer did not complete");
+
+                        self.checkpoint.update_descriptor(None);
+
+                        StStatus::ReqLatestCid
+                    };
+                }
+
                 if !self.cur_message.is_empty() {
                     println!("requesting more state from {:?}", self.cur_target);
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
@@ -1334,15 +1357,6 @@ where
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
                     i += 1;
                 } else if self.message_list.is_empty() && self.cur_message.is_empty() {
-                    // finished receiving state from all replicas
-                    i += 1;
-                    
-                }
-
-                self.curr_timeout = self.base_timeout;
-                let mut targets = self.checkpoint.targets.lock().unwrap();
-
-                if i == targets.len() {
                     self.phase = ProtoPhase::Init;
                     targets.clear();
 
