@@ -1183,7 +1183,7 @@ where
                 // If there are no messages to send to a replica
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
                 let mut i = i;
-                if self.cur_message.is_empty() {
+                if self.cur_message.is_empty() && !self.message_list.is_empty() {
                     println!("requesting state {:?} to {:?}", i, self.cur_target);
                     let (node, next_messages) = self.message_list.pop().unwrap();
                     let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
