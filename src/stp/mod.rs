@@ -1502,6 +1502,7 @@ where
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
         // let time = Instant::now();
+        println!("receiving parts {:?}", parts.len());
         if !parts.is_empty() {
             self.checkpoint.write_parts(parts)?;
         }
