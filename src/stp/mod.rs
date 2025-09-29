@@ -734,7 +734,6 @@ where
 
                     self.request_latest_state_parts(view)?;
 
-                    self.phase = ProtoPhase::ReceivingState(0);
 
                 }
             }
@@ -1245,6 +1244,8 @@ where
                 }
             }
             ProtoPhase::ReceivingState(i) => {
+                metric_store_count(TOTAL_STATE_INSTALLED_ID, 0);
+
                 // If there are no messages to send to a replica
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
                 if self.cur_message.is_empty() && !self.message_list.is_empty() {
@@ -1333,7 +1334,7 @@ where
                         // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
                         // where we assume our state is wrong, therefore out descriptor is wrong
                         info!("state transfer did not complete");
-
+                        println!("ST did not complete");
                         self.checkpoint.update_descriptor(None);
 
                         StStatus::ReqLatestCid
@@ -1358,10 +1359,13 @@ where
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
 
                     self.phase = ProtoPhase::ReceivingState(i+1);
+                    return StStatus::Running;
 
                 } else if self.message_list.is_empty() && self.cur_message.is_empty() {
                     self.phase = ProtoPhase::ReceivingState(i+1);
-
+                    if !self.checkpoint.req_parts.is_empty() {
+                    return StStatus::StateComplete(state_seq);
+                    }
                 }
                 
 
@@ -1438,6 +1442,7 @@ where
             self.message_list.push((*n,p));
         }
         // let _ = self.checkpoint.parts.compact_range(STATE, Some([]), Some([]));
+        self.phase = ProtoPhase::ReceivingState(0);
 
         Ok(())
     }
@@ -1449,9 +1454,7 @@ where
     }
 
     fn install_state(&mut self, parts: Vec<S::PartDescription>) -> Result<STResult> {
-        println!("START INSTALL STATE");
-        metric_store_count(TOTAL_STATE_INSTALLED_ID, 0);
-
+        // println!("START INSTALL STATE");
         if self.checkpoint.descriptor().is_none() {
             panic!("No descriptor while installing state");
         }
@@ -1463,7 +1466,6 @@ where
         // let start_install = Instant::now();
 
         let state_frags = split_evenly(&parts, 4);
-        println!("installing {:?} parts", parts.len());
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
                 if !frag.is_empty() {
@@ -1471,10 +1473,8 @@ where
                         let (st_frag, size) = self.checkpoint.get_parts(frag).unwrap();
 
                         metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
-                        println!("sending state parts {:?} size {:?}", st_frag.len(), size);
                         let res = self.install_channel
                             .send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
-                        println!("send_res {:?}", res);
                     });
                 }
             });
