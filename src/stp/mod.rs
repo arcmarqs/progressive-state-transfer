@@ -1258,7 +1258,7 @@ where
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
 
-                } else if self.cur_message.is_empty() {
+                } else if self.cur_message.is_empty() && !self.message_list.is_empty() {
                     // advance to next node
                     println!("requesting to next node");
                     let (node, next_messages) = self.message_list.pop().unwrap();
@@ -1402,9 +1402,9 @@ where
                         let (st_frag, size) = self.checkpoint.get_parts_by_ref(frag).unwrap();
 
                         metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
-                        println!("sending state parts");
+                        println!("sending state parts {:?} size {:?}", st_frag.len(), size);
                         self.install_channel
-                            .send(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
+                            .send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)))
                             .unwrap();
                     });
                 }
