@@ -561,7 +561,6 @@ where
         }
 
         let status = self.process_message_inner(view, StProgress::Message(header, st_message));
-        println!("Result of process message inner {:?}", status);
 
         match status {
             StStatus::Nil => (),
@@ -1006,6 +1005,8 @@ where
     where
         V: NetworkView,
     {
+
+        println!("progress");
         match self.phase {
             ProtoPhase::WaitingCheckpoint(_) => {
                 self.process_pending_state_requests();
@@ -1191,12 +1192,7 @@ where
                     self.cur_target = node;
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
-                } else if self.cur_message.is_empty() {
-                    // advance to next node
-                    println!("requesting to next node");
-                    self.sending_message = false;
-                    i += 1;
-                }
+                } 
 
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
 
@@ -1261,10 +1257,23 @@ where
                     println!("requesting more state from {:?}", self.cur_target);
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
+
+                } else if self.cur_message.is_empty() {
+                    // advance to next node
+                    println!("requesting to next node");
+                    let (node, next_messages) = self.message_list.pop().unwrap();
+                    let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
+                    self.cur_message = vecs;
+                    self.sending_message = true;
+                    self.cur_target = node;
+                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
+                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
+                    i += 1;
                 }
 
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
+
                 if i == targets.len() {
                     self.phase = ProtoPhase::Init;
                     targets.clear();
