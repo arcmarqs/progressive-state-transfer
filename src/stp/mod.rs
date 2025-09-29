@@ -149,7 +149,8 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         if lock.is_empty() {
             None
         } else {
-            Some(lock.drain(0..num_parts).collect())
+            let range = num_parts.min(lock.len());
+            Some(lock.drain(0..range).collect())
         }
     }
 
@@ -691,7 +692,7 @@ where
         match status {
             StStatus::Nil => (),
             StStatus::Running => {
-               if let Some(parts) = self.checkpoint.pop_install(2048) {
+               if let Some(parts) = self.checkpoint.pop_install(512) {
                     self.install_state(parts)?;
                 } 
             },
