@@ -1183,12 +1183,11 @@ where
                 // If there are no messages to send to a replica
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
                 let mut i = i;
-                if self.cur_message.is_empty() && !self.sending_message {
+                if self.cur_message.is_empty() {
                     println!("requesting state {:?} to {:?}", i, self.cur_target);
                     let (node, next_messages) = self.message_list.pop().unwrap();
                     let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
                     self.cur_message = vecs;
-                    self.sending_message = true;
                     self.cur_target = node;
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
@@ -1253,7 +1252,7 @@ where
                 });
                 drop(state);
 
-                if self.sending_message && !self.cur_message.is_empty() {
+                if !self.cur_message.is_empty() {
                     println!("requesting more state from {:?}", self.cur_target);
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
@@ -1264,11 +1263,14 @@ where
                     let (node, next_messages) = self.message_list.pop().unwrap();
                     let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
                     self.cur_message = vecs;
-                    self.sending_message = true;
                     self.cur_target = node;
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
                     i += 1;
+                } else if self.message_list.is_empty() && self.cur_message.is_empty() {
+                    // finished receiving state from all replicas
+                    i += 1;
+                    
                 }
 
                 self.curr_timeout = self.base_timeout;
