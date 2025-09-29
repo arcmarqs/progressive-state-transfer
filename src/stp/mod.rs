@@ -1499,7 +1499,7 @@ where
     fn finish_install_state(&mut self) -> Result<STResult> {
 
         println!("finished state transfer parts left {:?} {:?} {:?}", self.cur_message.len(), self.message_list.len(), self.checkpoint.ready_to_install.lock().unwrap().len());
-        
+
          self.install_channel
             .send(InstallStateMessage::Done)
             .unwrap();
@@ -1576,7 +1576,6 @@ where
 
         if self.checkpoint.get_seqno() < seq_no {
             info!("receiving checkpoint {:?}", descriptor.get_digest());
-            println!("receiving checkpoint {:?}", descriptor.get_digest());
 
             self.new_descriptor = Some(descriptor);
         }
@@ -1588,7 +1587,6 @@ where
         parts: Vec<<S as DivisibleState>::StatePart>,
     ) -> Result<()> {
         // let time = Instant::now();
-        println!("receiving parts {:?}", parts.len());
         if !parts.is_empty() {
             self.checkpoint.write_parts(parts)?;
         }
