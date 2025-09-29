@@ -53,7 +53,6 @@ pub mod message;
 pub mod metrics;
 
 const INSTALL_ITERATIONS: usize = 12;
-const MAXIMUM_PARTS: usize = 256;
 
 const STATE: &str = "state";
 
@@ -145,12 +144,21 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
         lock.extend(parts);
     }
 
-    pub fn pop_install(&self) -> Option<Vec<S::PartDescription>> {
+    pub fn pop_install(&self, num_parts: usize) -> Option<Vec<S::PartDescription>> {
         let mut lock = self.ready_to_install.lock().expect("failed to lock");
         if lock.is_empty() {
             None
         } else {
-            Some(lock.drain(0..MAXIMUM_PARTS).collect())
+            Some(lock.drain(0..num_parts).collect())
+        }
+    }
+
+    pub fn pop_remaining(&self) -> Option<Vec<S::PartDescription>> {
+         let mut lock = self.ready_to_install.lock().expect("failed to lock");
+        if lock.is_empty() {
+            None
+        } else {
+            Some(lock.drain(..).collect())
         }
     }
     
@@ -683,7 +691,7 @@ where
         match status {
             StStatus::Nil => (),
             StStatus::Running => {
-               if let Some(parts) = self.checkpoint.pop_install() {
+               if let Some(parts) = self.checkpoint.pop_install(2048) {
                     self.install_state(parts)?;
                 } 
             },
@@ -728,7 +736,7 @@ where
                     self.checkpoint.get_req_parts_mt(&mut self.threadpool);
 
                     if self.checkpoint.req_parts.is_empty() {
-                        let parts = self.checkpoint.pop_install().unwrap();
+                        let parts = self.checkpoint.pop_install(4096).unwrap();
                         return self.install_state(parts);
                     }
 
@@ -1464,7 +1472,7 @@ where
 
         // let start_install = Instant::now();
 
-        let state_frags = split_evenly(&parts, 4);
+        let state_frags = split_evenly(&parts, 8);
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
                 if !frag.is_empty() {
@@ -1488,6 +1496,10 @@ where
     }
 
     fn finish_install_state(&mut self) -> Result<STResult> {
+
+        if let Some(remaining) = self.checkpoint.pop_remaining(){
+            self.install_state(remaining)?;
+        }
 
         println!("finished state transfer parts left {:?} {:?} {:?}", self.cur_message.len(), self.message_list.len(), self.checkpoint.ready_to_install.lock().unwrap().len());
          self.install_channel
