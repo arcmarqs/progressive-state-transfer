@@ -1473,7 +1473,7 @@ where
 
         // let start_install = Instant::now();
 
-        let state_frags = split_evenly(&parts, 8);
+        let state_frags = split_evenly(&parts, 4);
         self.threadpool.scoped(|scope| {
             state_frags.for_each(|frag| {
                 if !frag.is_empty() {
@@ -1487,7 +1487,7 @@ where
             });
         });
 
-        if self.checkpoint.req_parts.is_empty() {
+        if self.checkpoint.req_parts.is_empty() & self.checkpoint.ready_to_install.lock().unwrap().is_empty() {
             println!("all parts installed, finishing state transfer");
             return self.finish_install_state();
         } 
@@ -1498,11 +1498,8 @@ where
 
     fn finish_install_state(&mut self) -> Result<STResult> {
 
-        if let Some(remaining) = self.checkpoint.pop_remaining(){
-            self.install_state(remaining)?;
-        }
-
         println!("finished state transfer parts left {:?} {:?} {:?}", self.cur_message.len(), self.message_list.len(), self.checkpoint.ready_to_install.lock().unwrap().len());
+        
          self.install_channel
             .send(InstallStateMessage::Done)
             .unwrap();
