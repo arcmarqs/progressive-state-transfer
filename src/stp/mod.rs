@@ -691,11 +691,7 @@ where
 
         match status {
             StStatus::Nil => (),
-            StStatus::Running => {
-               if let Some(parts) = self.checkpoint.pop_install(512) {
-                    self.install_state(parts)?;
-                } 
-            },
+            StStatus::Running => (),
             StStatus::ReqLatestCid => self.request_latest_consensus_seq_no(view),
             StStatus::SeqNo(seq) => {
                 return if self.checkpoint.get_seqno() < seq {
@@ -1272,13 +1268,21 @@ where
 
                 if message.sequence_number() != self.curr_seq {
                     // NOTE: check comment above, on ProtoPhase::ReceivingCid
+                     if let Some(parts) = self.checkpoint.pop_install(512) {
+                        self.install_state(parts).unwrap();
+                    } 
                     return StStatus::Running;
                 }
 
                 let state = match message.take_state() {
                     Some(state) => state,
                     // drop invalid message kinds
-                    None => return StStatus::Running,
+                    None => {
+                        if let Some(parts) = self.checkpoint.pop_install(512) {
+                            self.install_state(parts).unwrap();
+                        } 
+                        return StStatus::Running
+                    },
                 };
                 
                 let state_seq = state.seq;
