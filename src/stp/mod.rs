@@ -1356,11 +1356,11 @@ where
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
 
-                if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() {
-                self.phase = ProtoPhase::Init;
-                targets.clear();
+                if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() && self.checkpoint.req_parts.is_empty() {
+                    self.phase = ProtoPhase::Init;
+                    targets.clear();
 
-                println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
+                    println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
                 return if self.checkpoint.req_parts.is_empty() {
                     println!("state transfer complete seq: {:?}", state_seq);
                     StStatus::StateComplete(state_seq)
