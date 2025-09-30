@@ -1607,12 +1607,19 @@ where
                 &desc.get_digest(),
                 seq_no.next()
             );
+
+            println!(
+                "{:?} // new checkpoint desc{:?}, seqno {:?}",
+                self.node.id(),
+                &desc.get_digest(),
+                seq_no.next()
+            );
             self.checkpoint.update_seqno(seq_no);
             self.checkpoint.update_descriptor(Some(desc));
         }
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
-        println!("checkpoint updated");
+       // println!("checkpoint updated");
         //self.checkpoint.statistics();
 
         Ok(())
