@@ -483,6 +483,7 @@ pub struct RecoveryState<S: DivisibleState> {
 enum StStatus<S: DivisibleState> {
     Nil,
     Running,
+    StateReady,
     ReqLatestCid,
     SeqNo(SeqNo),
     RequestStateDescriptor,
@@ -495,29 +496,30 @@ impl<S: DivisibleState> Debug for StStatus<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             StStatus::Nil => {
-                write!(f, "Nil")
-            }
+                        write!(f, "Nil")
+                    }
             StStatus::Running => {
-                write!(f, "Running")
-            }
+                        write!(f, "Running")
+                    }
             StStatus::ReqLatestCid => {
-                write!(f, "Request latest CID")
-            }
+                        write!(f, "Request latest CID")
+                    }
             StStatus::ReqState => {
-                write!(f, "Request latest state")
-            }
+                        write!(f, "Request latest state")
+                    }
             StStatus::SeqNo(seq) => {
-                write!(f, "Received seq no {:?}", seq)
-            }
+                        write!(f, "Received seq no {:?}", seq)
+                    }
             StStatus::StateComplete(seq) => {
-                write!(
-                    f,
-                    "All parts have been received, can install state {:?}",
-                    seq
-                )
-            }
+                        write!(
+                            f,
+                            "All parts have been received, can install state {:?}",
+                            seq
+                        )
+                    }
             StStatus::RequestStateDescriptor => write!(f, "Request State Descriptor"),
             StStatus::StateDescriptor(_) => write!(f, "Received State Descriptor"),
+            StStatus::StateReady => write!(f,"Some State is ready to install"),
         }
     }
 }
@@ -694,58 +696,63 @@ where
             StStatus::Running => (),
             StStatus::ReqLatestCid => self.request_latest_consensus_seq_no(view),
             StStatus::SeqNo(seq) => {
-                return if self.checkpoint.get_seqno() < seq {
-                    self.curr_seq = seq;
-                    info!(
-                        "{:?} // Current State descriptor {:?}, Requesting state descriptor {:?}",
-                        self.node.id(),
-                        self.checkpoint.get_seqno(),
-                        seq
-                    );
-                    metric_duration_start(STATE_TRANSFER_TIME_ID);
-                    self.request_state_descriptor(view);
-                    Ok(STResult::StateTransferRunning)
-                } else {
-                    info!("{:?} // Not installing sequence number nor requesting state ???? {:?} {:?}", self.node.id(), self.checkpoint.seqno, seq);
-                    Ok(STResult::StateTransferNotNeeded(seq))
-                }
-            }
+                        return if self.checkpoint.get_seqno() < seq {
+                            self.curr_seq = seq;
+                            info!(
+                                "{:?} // Current State descriptor {:?}, Requesting state descriptor {:?}",
+                                self.node.id(),
+                                self.checkpoint.get_seqno(),
+                                seq
+                            );
+                            metric_duration_start(STATE_TRANSFER_TIME_ID);
+                            self.request_state_descriptor(view);
+                            Ok(STResult::StateTransferRunning)
+                        } else {
+                            info!("{:?} // Not installing sequence number nor requesting state ???? {:?} {:?}", self.node.id(), self.checkpoint.seqno, seq);
+                            Ok(STResult::StateTransferNotNeeded(seq))
+                        }
+                    }
             StStatus::ReqState => {
-                metric_store_count(TOTAL_STATE_TRANSFERED_ID, 0);
+                        metric_store_count(TOTAL_STATE_TRANSFERED_ID, 0);
 
-                self.request_latest_state(view)?;
-            }
+                        self.request_latest_state(view)?;
+                    }
             StStatus::RequestStateDescriptor => self.request_state_descriptor(view),
             StStatus::StateDescriptor(descriptor) => {
-                metric_duration_start(TOTAL_STATE_WAIT_ID);
-                if self
-                    .checkpoint
-                    .compare_descriptor(&Some(descriptor.clone()))
-                {
-                    self.checkpoint.update_seqno(self.largest_cid);
-                    println!("descriptor is the same, no ST needed");
-                    return Ok(STResult::StateTransferNotNeeded(
-                        self.checkpoint.get_seqno(),
-                    ));
-                } else {
-                    self.checkpoint.update_descriptor(Some(descriptor));
+                        metric_duration_start(TOTAL_STATE_WAIT_ID);
+                        if self
+                            .checkpoint
+                            .compare_descriptor(&Some(descriptor.clone()))
+                        {
+                            self.checkpoint.update_seqno(self.largest_cid);
+                            println!("descriptor is the same, no ST needed");
+                            return Ok(STResult::StateTransferNotNeeded(
+                                self.checkpoint.get_seqno(),
+                            ));
+                        } else {
+                            self.checkpoint.update_descriptor(Some(descriptor));
 
-                    self.checkpoint.get_req_parts_mt(&mut self.threadpool);
+                            self.checkpoint.get_req_parts_mt(&mut self.threadpool);
 
-                    if self.checkpoint.req_parts.is_empty() {
-                        let parts = self.checkpoint.pop_install(4096).unwrap();
-                        return self.install_state(parts);
+                            if self.checkpoint.req_parts.is_empty() {
+                                let parts = self.checkpoint.pop_install(1024).unwrap();
+                                return self.install_state(parts);
+                            }
+
+                            self.request_latest_state_parts(view)?;
+
+
+                        }
                     }
-
-                    self.request_latest_state_parts(view)?;
-
-
-                }
-            }
             StStatus::StateComplete(_seq) => {
-                metric_duration_end(TOTAL_STATE_WAIT_ID);
-                return self.finish_install_state();
-            }
+                        metric_duration_end(TOTAL_STATE_WAIT_ID);
+                        return self.finish_install_state();
+                    }
+            StStatus::StateReady => {
+                 if let Some(parts) = self.checkpoint.pop_install(512) {
+                           return self.install_state(parts)
+                 }
+            },
         }
 
         Ok(STResult::StateTransferRunning)
@@ -1268,20 +1275,14 @@ where
 
                 if message.sequence_number() != self.curr_seq {
                     // NOTE: check comment above, on ProtoPhase::ReceivingCid
-                     if let Some(parts) = self.checkpoint.pop_install(512) {
-                        self.install_state(parts).unwrap();
-                    } 
                     return StStatus::Running;
                 }
 
                 let state = match message.take_state() {
                     Some(state) => state,
                     // drop invalid message kinds
-                    None => {
-                        if let Some(parts) = self.checkpoint.pop_install(512) {
-                            self.install_state(parts).unwrap();
-                        } 
-                        return StStatus::Running
+                    None => { 
+                        return StStatus::Running;
                     },
                 };
                 
@@ -1356,9 +1357,17 @@ where
                 }
 
                 if !self.cur_message.is_empty() {
-                    println!("requesting more state from {:?}", self.cur_target);
-                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
+                    let state_req = self.cur_message.pop().unwrap();
+                    println!("requesting more state from {:?} {:?} parts", self.cur_target, state_req.len());
+                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
+
+                    if self.cur_message.is_empty() {
+                        let i = i + 1;
+                        println!("Increase phase");
+                        self.phase = ProtoPhase::ReceivingState(i);
+                        return StStatus::Running;
+                    }
 
                 } else if self.cur_message.is_empty() && !self.message_list.is_empty() {
                     // advance to next node
@@ -1369,12 +1378,6 @@ where
                     self.cur_target = node;
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
-
-                    let i = i + 1;
-                    println!("Increase phase");
-                    self.phase = ProtoPhase::ReceivingState(i);
-                    return StStatus::Running;
-
                 } else if self.message_list.is_empty() && self.cur_message.is_empty() {
                     let i = i + 1;
                     println!("Increase phase");
@@ -1386,7 +1389,7 @@ where
                 }
                 
 
-                StStatus::Running
+                StStatus::StateReady
             }
         }
     }
