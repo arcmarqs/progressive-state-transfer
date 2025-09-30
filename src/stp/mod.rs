@@ -1263,7 +1263,7 @@ where
                 self.phase = ProtoPhase::ReceivingState(i);
 
                 // If there are no messages to send to a replica
-
+                println!("Receiving State");
                if self.cur_message.is_empty() {
                     if let Some((node, next_messages)) = self.message_list.pop() {
                         let vecs = split_evenly(&next_messages, 4)
