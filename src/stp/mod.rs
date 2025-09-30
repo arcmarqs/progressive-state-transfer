@@ -1276,6 +1276,18 @@ where
                     }
                 }
 
+                if let Some(state_req) = self.cur_message.pop() {
+                    println!("requesting state from {:?} {:?} parts", self.cur_target, state_req.len());
+                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
+                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
+
+                    if self.cur_message.is_empty() {
+                        let i= i + 1;
+                        println!("Increase phase to {:?}", i);
+                        self.phase = ProtoPhase::ReceivingState(i);
+                    }
+                }
+
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
 
                 if message.sequence_number() != self.curr_seq {
@@ -1344,34 +1356,25 @@ where
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
 
-                if let Some(state_req) = self.cur_message.pop() {
-                    println!("requesting state from {:?} {:?} parts", self.cur_target, state_req.len());
-                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
-                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
+                if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() {
+                self.phase = ProtoPhase::Init;
+                targets.clear();
 
-                    if self.cur_message.is_empty() {
-                        let i= i + 1;
-                        println!("Increase phase to {:?}", i);
-                        self.phase = ProtoPhase::ReceivingState(i);
-                    }
-                } else if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() {
-                    self.phase = ProtoPhase::Init;
-                    targets.clear();
+                println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
+                return if self.checkpoint.req_parts.is_empty() {
+                    println!("state transfer complete seq: {:?}", state_seq);
+                    StStatus::StateComplete(state_seq)
+                } else {
+                    // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
+                    // where we assume our state is wrong, therefore out descriptor is wrong
+                    info!("state transfer did not complete");
+                    println!("ST did not complete");
+                    self.checkpoint.update_descriptor(None);
 
-                    println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
-                    return if self.checkpoint.req_parts.is_empty() {
-                        println!("state transfer complete seq: {:?}", state_seq);
-                        StStatus::StateComplete(state_seq)
-                    } else {
-                        // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
-                        // where we assume our state is wrong, therefore out descriptor is wrong
-                        info!("state transfer did not complete");
-                        println!("ST did not complete");
-                        self.checkpoint.update_descriptor(None);
-
-                        StStatus::ReqLatestCid
-                    }
+                    StStatus::ReqLatestCid
                 }
+            }
+
                 StStatus::StateReady
             }
         }
