@@ -1573,14 +1573,14 @@ where
             self.checkpoint.get_seqno(),
             seq_no
         );
-        // println!(
-        //     "receiving checkpoint {:?} {:?}",
-        //      self.checkpoint.get_seqno(),
-        //     seq_no
-        //  );
+        println!(
+            "receiving checkpoint {:?} {:?}",
+            self.checkpoint.get_seqno(),
+            seq_no
+        );
 
         if self.checkpoint.get_seqno() < seq_no {
-            info!("receiving checkpoint {:?}", descriptor.get_digest());
+           // info!("receiving checkpoint {:?}", descriptor.get_digest());
 
             self.new_descriptor = Some(descriptor);
         }
