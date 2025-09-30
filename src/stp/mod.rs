@@ -1476,12 +1476,7 @@ where
                 }
             });
         });
-
-        if self.checkpoint.req_parts.is_empty() & self.checkpoint.ready_to_install.lock().unwrap().is_empty() {
-            println!("all parts installed, finishing state transfer");
-            return self.finish_install_state();
-        } 
-
+        
         Ok(STResult::StateTransferReady)
        
     }
