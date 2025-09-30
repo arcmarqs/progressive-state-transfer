@@ -746,6 +746,9 @@ where
                     }
             StStatus::StateComplete(_seq) => {
                         metric_duration_end(TOTAL_STATE_WAIT_ID);
+                        if let Some(parts) = self.checkpoint.pop_install(4096) {
+                           let _ = self.install_state(parts);
+                        }
                         return self.finish_install_state();
                     }
             StStatus::StateReady => {
@@ -1261,15 +1264,17 @@ where
 
                 // If there are no messages to send to a replica
 
-                if self.cur_message.is_empty() && !self.message_list.is_empty() {
-                    let (node, next_messages) = self.message_list.pop().unwrap();
-                    let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
-                    self.cur_message = vecs;
-                    self.cur_target = node;
-                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
-                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
-                    println!("requesting state {:?} to {:?}", i, self.cur_target);
-                } 
+               if self.cur_message.is_empty() {
+                    if let Some((node, next_messages)) = self.message_list.pop() {
+                        let vecs = split_evenly(&next_messages, 4)
+                            .map(|r| r.to_vec())
+                            .collect::<Vec<_>>();
+                        self.cur_message = vecs;
+                        self.cur_target = node;
+                        } else {
+                        // nothing more to request
+                    }
+                }
 
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
 
@@ -1285,7 +1290,7 @@ where
                         return StStatus::Running;
                     },
                 };
-                
+
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
 
                 let state_seq = state.seq;
@@ -1339,18 +1344,16 @@ where
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
 
-                if !self.cur_message.is_empty() {
-                    let state_req = self.cur_message.pop().unwrap();
-                    println!("requesting more state from {:?} {:?} parts", self.cur_target, state_req.len());
+                if let Some(state_req) = self.cur_message.pop() {
+                    println!("requesting state from {:?} {:?} parts", self.cur_target, state_req.len());
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
 
                     if self.cur_message.is_empty() {
-                        // advance to next node
-                        let i = i + 1;
-                        println!("Increase phase");
+                        let i= i + 1;
+                        println!("Increase phase to {:?}", i);
                         self.phase = ProtoPhase::ReceivingState(i);
-                    } 
+                    }
                 } else if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() {
                     self.phase = ProtoPhase::Init;
                     targets.clear();
@@ -1480,7 +1483,6 @@ where
         });
 
         Ok(STResult::StateTransferReady)
-       
     }
 
     fn finish_install_state(&mut self) -> Result<STResult> {
