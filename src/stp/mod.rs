@@ -1337,7 +1337,7 @@ where
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
 
-                if i == targets.len() && self.message_list.is_empty() {
+                if i == targets.len() && self.cur_message.is_empty() {
                     self.phase = ProtoPhase::Init;
                     targets.clear();
 
