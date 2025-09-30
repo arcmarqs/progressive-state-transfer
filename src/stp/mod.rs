@@ -1363,21 +1363,15 @@ where
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
 
                     if self.cur_message.is_empty() {
-                        let i = i + 1;
-                        println!("Increase phase");
-                        self.phase = ProtoPhase::ReceivingState(i);
-                        return StStatus::Running;
+                       
                     }
 
-                } else if self.cur_message.is_empty() && !self.message_list.is_empty() {
+                } else if self.cur_message.is_empty() {
                     // advance to next node
-                    println!("requesting to next node");
-                    let (node, next_messages) = self.message_list.pop().unwrap();
-                    let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
-                    self.cur_message = vecs;
-                    self.cur_target = node;
-                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
-                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
+                     let i = i + 1;
+                    println!("Increase phase");
+                    self.phase = ProtoPhase::ReceivingState(i);
+                    return StStatus::Running;
                 } else if self.message_list.is_empty() && self.cur_message.is_empty() {
                     let i = i + 1;
                     println!("Increase phase");
