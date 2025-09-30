@@ -1363,26 +1363,12 @@ where
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
 
                     if self.cur_message.is_empty() {
-                       
-                    }
-
-                } else if self.cur_message.is_empty() {
-                    // advance to next node
-                     let i = i + 1;
-                    println!("Increase phase condition 1");
-                    self.phase = ProtoPhase::ReceivingState(i);
-                    return StStatus::Running;
-                } else if self.message_list.is_empty() && self.cur_message.is_empty() {
-                    let i = i + 1;
-                    println!("Increase phase condition 2");
-                    self.phase = ProtoPhase::ReceivingState(i);
-                    
-                    if !self.checkpoint.req_parts.is_empty() {
-                    return StStatus::StateComplete(state_seq);
-                    }
-                }
-                
-
+                        // advance to next node
+                        let i = i + 1;
+                        println!("Increase phase condition 1");
+                        self.phase = ProtoPhase::ReceivingState(i);
+                    } 
+                } 
                 StStatus::StateReady
             }
         }
