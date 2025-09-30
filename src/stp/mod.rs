@@ -1260,15 +1260,15 @@ where
                 self.phase = ProtoPhase::ReceivingState(i);
 
                 // If there are no messages to send to a replica
-                println!("receiving state {:?} {:?}", i, self.cur_message.len());
+
                 if self.cur_message.is_empty() && !self.message_list.is_empty() {
-                    println!("requesting state {:?} to {:?}", i, self.cur_target);
                     let (node, next_messages) = self.message_list.pop().unwrap();
                     let vecs = split_evenly(&next_messages, 4).map(|r| r.to_vec()).collect::<Vec<_>>();
                     self.cur_message = vecs;
                     self.cur_target = node;
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(self.cur_message.pop().unwrap()));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
+                    println!("requesting state {:?} to {:?}", i, self.cur_target);
                 } 
 
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
@@ -1286,6 +1286,8 @@ where
                     },
                 };
                 
+                println!("receiving state {:?} {:?}", i, self.cur_message.len());
+
                 let state_seq = state.seq;
             
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
@@ -1336,6 +1338,7 @@ where
 
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
+
                 if !self.cur_message.is_empty() {
                     let state_req = self.cur_message.pop().unwrap();
                     println!("requesting more state from {:?} {:?} parts", self.cur_target, state_req.len());
