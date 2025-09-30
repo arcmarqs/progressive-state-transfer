@@ -1337,7 +1337,7 @@ where
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
 
-                if i == targets.len() {
+                if i == targets.len() && self.message_list.is_empty() {
                     self.phase = ProtoPhase::Init;
                     targets.clear();
 
@@ -1353,10 +1353,8 @@ where
                         self.checkpoint.update_descriptor(None);
 
                         StStatus::ReqLatestCid
-                    };
-                }
-
-                if !self.cur_message.is_empty() {
+                    }
+                } else if !self.cur_message.is_empty() {
                     let state_req = self.cur_message.pop().unwrap();
                     println!("requesting more state from {:?} {:?} parts", self.cur_target, state_req.len());
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
@@ -1365,7 +1363,7 @@ where
                     if self.cur_message.is_empty() {
                         // advance to next node
                         let i = i + 1;
-                        println!("Increase phase condition 1");
+                        println!("Increase phase");
                         self.phase = ProtoPhase::ReceivingState(i);
                     } 
                 } 
