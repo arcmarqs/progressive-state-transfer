@@ -1336,8 +1336,19 @@ where
 
                 self.curr_timeout = self.base_timeout;
                 let mut targets = self.checkpoint.targets.lock().unwrap();
+                if !self.cur_message.is_empty() {
+                    let state_req = self.cur_message.pop().unwrap();
+                    println!("requesting more state from {:?} {:?} parts", self.cur_target, state_req.len());
+                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
+                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
 
-                if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() {
+                    if self.cur_message.is_empty() {
+                        // advance to next node
+                        let i = i + 1;
+                        println!("Increase phase");
+                        self.phase = ProtoPhase::ReceivingState(i);
+                    } 
+                } else if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() {
                     self.phase = ProtoPhase::Init;
                     targets.clear();
 
@@ -1354,19 +1365,7 @@ where
 
                         StStatus::ReqLatestCid
                     }
-                } else if !self.cur_message.is_empty() {
-                    let state_req = self.cur_message.pop().unwrap();
-                    println!("requesting more state from {:?} {:?} parts", self.cur_target, state_req.len());
-                    let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
-                    self.node.send(message, self.cur_target, false).expect("Failed to send message");
-
-                    if self.cur_message.is_empty() {
-                        // advance to next node
-                        let i = i + 1;
-                        println!("Increase phase");
-                        self.phase = ProtoPhase::ReceivingState(i);
-                    } 
-                } 
+                }
                 StStatus::StateReady
             }
         }
@@ -1476,7 +1475,7 @@ where
                 }
             });
         });
-        
+
         Ok(STResult::StateTransferReady)
        
     }
