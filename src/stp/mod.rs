@@ -1317,7 +1317,7 @@ where
                 };
 
                 drop(message);
-                
+
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
 
                 let state_seq = state.seq;
@@ -1594,14 +1594,14 @@ where
                 "{:?} // new checkpoint desc {:?}, seqno {:?}",
                 self.node.id(),
                 &desc.get_digest(),
-                seq_no.next()
+                seq_no
             );
 
             println!(
                 "{:?} // new checkpoint desc {:?}, seqno {:?}",
                 self.node.id(),
                 &desc.get_digest(),
-                seq_no.next()
+                seq_no
             );
             self.checkpoint.update_seqno(seq_no);
             self.checkpoint.update_descriptor(Some(desc));
