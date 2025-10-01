@@ -1047,6 +1047,8 @@ where
             }),
         );
 
+        drop(message);
+
         self.node.send(reply, header.from(), false).unwrap();
         metric_duration(PROCESS_REQ_STATE_TIME_ID, start.elapsed());
         println!("process req state finished {:?}", start.elapsed());
@@ -1120,7 +1122,6 @@ where
                     // CstStatus::RequestState
                     _ => (),
                 }
-
                 StStatus::Nil
             }
             ProtoPhase::InstallState => {
@@ -1271,7 +1272,7 @@ where
             ProtoPhase::ReceivingState(i) => {
                 metric_store_count(TOTAL_STATE_INSTALLED_ID, 0);
                 self.phase = ProtoPhase::ReceivingState(i);
-                let mut targets_len = self.checkpoint.targets.lock().unwrap().len();
+                let targets_len = self.checkpoint.targets.lock().unwrap().len();
 
                 // If there are no messages to send to a replica
                 println!("Receiving State {:?}", self.cur_message.len());
@@ -1315,7 +1316,8 @@ where
                     },
                 };
 
-
+                drop(message);
+                
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
 
                 let state_seq = state.seq;
