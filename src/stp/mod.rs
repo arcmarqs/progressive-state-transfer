@@ -819,7 +819,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(1);
+        let tp = Pool::new(2);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
         // checkpoint.statistics();
 
@@ -1284,7 +1284,7 @@ where
                     }
 
                     if let Some((node, next_messages)) = self.message_list.pop() {
-                        let vecs = split_evenly(&next_messages, 4)
+                        let vecs = split_evenly(&next_messages, 12)
                             .map(|r| r.to_vec())
                             .collect::<Vec<_>>();
                         self.cur_message = vecs;
@@ -1321,7 +1321,7 @@ where
                 let state_seq = state.seq;
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
-                let frags = split_evenly(&state.st_frag, 4);
+                let frags = split_evenly(&state.st_frag, 2);
 
                 self.threadpool.scoped(|scope| {
                     // let time = Instant::now();
@@ -1481,19 +1481,9 @@ where
 
         // let start_install = Instant::now();
 
-        let state_frags = split_evenly(&parts, 4);
-        self.threadpool.scoped(|scope| {
-            state_frags.for_each(|frag| {
-                if !frag.is_empty() {
-                    scope.execute(|| {
-                        let (st_frag, size) = self.checkpoint.get_parts(frag).unwrap();
-                        metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
-                        let res = self.install_channel
-                            .send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
-                    });
-                }
-            });
-        });
+        let (st_frag, size) = self.checkpoint.get_parts(parts.as_slice()).unwrap();
+        let res = self.install_channel.send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
+        metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
 
         Ok(STResult::StateTransferReady)
     }
