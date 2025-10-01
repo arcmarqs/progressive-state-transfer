@@ -450,26 +450,30 @@ enum ProtoPhase<S: DivisibleState> {
     ReceivingCid(usize),
     ReceivingStateDescriptor(usize),
     ReceivingState(usize),
+    InstallState,
 }
 
 impl<S: DivisibleState> Debug for ProtoPhase<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ProtoPhase::Init => {
-                write!(f, "Init Phase")
-            }
+                        write!(f, "Init Phase")
+                    }
             ProtoPhase::WaitingCheckpoint(header) => {
-                write!(f, "Waiting for checkpoint {}", header.len())
-            }
+                        write!(f, "Waiting for checkpoint {}", header.len())
+                    }
             ProtoPhase::ReceivingCid(size) => {
-                write!(f, "Receiving CID phase {} responses", size)
-            }
+                        write!(f, "Receiving CID phase {} responses", size)
+                    }
             ProtoPhase::ReceivingStateDescriptor(i) => {
-                write!(f, "Receiving state descriptor {}", i)
-            }
+                        write!(f, "Receiving state descriptor {}", i)
+                    }
             ProtoPhase::ReceivingState(i) => {
-                write!(f, "Receiving state phase responses {}", i)
-            }
+                        write!(f, "Receiving state phase responses {}", i)
+                    }
+            ProtoPhase::InstallState => {
+                        write!(f, "Installing State")
+                    }
         }
     }
 }
@@ -734,14 +738,18 @@ where
 
                             self.checkpoint.get_req_parts_mt(&mut self.threadpool);
 
-                            if self.checkpoint.req_parts.is_empty() {
-                                let parts = self.checkpoint.pop_install(1024).unwrap();
-                                return self.install_state(parts);
+                            if !self.checkpoint.req_parts.is_empty() {
+                                self.request_latest_state_parts(view)?;
+
+                                if let Some(parts) = self.checkpoint.pop_install(512) {
+                                    return self.install_state(parts)
+                                }
+                            } else {
+                                 if let Some(parts) = self.checkpoint.pop_install(4096) {
+                                    let _ = self.install_state(parts);
+                                }
+                                return self.finish_install_state();
                             }
-
-                            self.request_latest_state_parts(view)?;
-
-
                         }
                     }
             StStatus::StateComplete(_seq) => {
@@ -1114,6 +1122,10 @@ where
                 }
 
                 StStatus::Nil
+            }
+            ProtoPhase::InstallState => {
+
+                StStatus::StateReady
             }
             ProtoPhase::ReceivingCid(i) => {
                 let (header, message) = getmessage!(progress, StStatus::ReqLatestCid);
