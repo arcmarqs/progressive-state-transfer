@@ -1587,14 +1587,14 @@ where
     fn handle_state_finished_reception(&mut self, seq_no: SeqNo) -> Result<()> {
         if let Some(desc) = self.new_descriptor.take() {
             info!(
-                "{:?} // new checkpoint desc{:?}, seqno {:?}",
+                "{:?} // new checkpoint desc {:?}, seqno {:?}",
                 self.node.id(),
                 &desc.get_digest(),
                 seq_no.next()
             );
 
             println!(
-                "{:?} // new checkpoint desc{:?}, seqno {:?}",
+                "{:?} // new checkpoint desc {:?}, seqno {:?}",
                 self.node.id(),
                 &desc.get_digest(),
                 seq_no.next()
