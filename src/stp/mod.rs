@@ -1084,8 +1084,6 @@ where
     where
         V: NetworkView,
     {
-
-        println!("progress");
         match self.phase {
             ProtoPhase::WaitingCheckpoint(_) => {
                 self.process_pending_state_requests();
@@ -1261,10 +1259,18 @@ where
             ProtoPhase::ReceivingState(i) => {
                 metric_store_count(TOTAL_STATE_INSTALLED_ID, 0);
                 self.phase = ProtoPhase::ReceivingState(i);
+                let mut targets_len = self.checkpoint.targets.lock().unwrap().len();
 
                 // If there are no messages to send to a replica
                 println!("Receiving State {:?}", self.cur_message.len());
-               if self.cur_message.is_empty() {
+                if self.cur_message.is_empty() {
+
+                    if self.message_list.len() < targets_len {
+                        let i = i + 1;
+                        println!("Increase phase to {:?}", i);
+                        self.phase = ProtoPhase::ReceivingState(i);
+                    }
+
                     if let Some((node, next_messages)) = self.message_list.pop() {
                         let vecs = split_evenly(&next_messages, 4)
                             .map(|r| r.to_vec())
@@ -1280,12 +1286,6 @@ where
                     println!("requesting state from {:?} {:?} parts", self.cur_target, state_req.len());
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
-
-                    if self.cur_message.is_empty() {
-                        let i= i + 1;
-                        println!("Increase phase to {:?}", i);
-                        self.phase = ProtoPhase::ReceivingState(i);
-                    }
                 }
 
                 let (_header, mut message) = getmessage!(progress, StStatus::ReqState);
@@ -1303,10 +1303,10 @@ where
                     },
                 };
 
+
                 println!("receiving state {:?} {:?}", i, self.cur_message.len());
 
                 let state_seq = state.seq;
-            
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
                 let frags = split_evenly(&state.st_frag, 4);
@@ -1354,12 +1354,10 @@ where
 
 
                 self.curr_timeout = self.base_timeout;
-                let mut targets = self.checkpoint.targets.lock().unwrap();
 
-                if i == targets.len() && self.cur_message.is_empty() && self.message_list.is_empty() && self.checkpoint.req_parts.is_empty() {
+                if i == targets_len && self.cur_message.is_empty() && self.message_list.is_empty() && self.checkpoint.req_parts.is_empty() {
                     self.phase = ProtoPhase::Init;
-                    targets.clear();
-
+                    self.checkpoint.targets.lock().unwrap().clear();
                     println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
                 return if self.checkpoint.req_parts.is_empty() {
                     println!("state transfer complete seq: {:?}", state_seq);
