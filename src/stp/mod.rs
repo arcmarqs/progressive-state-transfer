@@ -660,13 +660,13 @@ where
     {
         let (header, message) = message.into_inner();
 
-        println!(
+        /* println!(
             "{:?} // Message {:?} from {:?} while in phase {:?}",
             self.node.id(),
             message,
             header.from(),
             self.phase
-        );
+        ); */
 
         match message.kind() {
             MessageKind::RequestLatestSeq => {
@@ -692,8 +692,6 @@ where
             .received_cst_request(header.from(), message.sequence_number());
 
         let status = self.process_message_inner(view.clone(), StProgress::Message(header, message));
-
-        println!("Result of process message inner {:?}", status);
 
         match status {
             StStatus::Nil => (),
@@ -724,7 +722,6 @@ where
             StStatus::RequestStateDescriptor => self.request_state_descriptor(view),
             StStatus::StateDescriptor(descriptor) => {
                         metric_duration_start(TOTAL_STATE_WAIT_ID);
-                        println!("comparing descriptor {:?} to {:?}", descriptor, self.checkpoint.descriptor());
                         if self
                             .checkpoint
                             .compare_descriptor(&Some(descriptor.clone())) || descriptor.get_digest().is_none()
