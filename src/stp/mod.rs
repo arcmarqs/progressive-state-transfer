@@ -1275,12 +1275,10 @@ where
                 let targets_len = self.checkpoint.targets.lock().unwrap().len();
 
                 // If there are no messages to send to a replica
-                println!("Receiving State {:?}", self.cur_message.len());
                 if self.cur_message.is_empty() {
 
                     if self.message_list.len() < targets_len {
                         let i = i + 1;
-                        println!("Increase phase to {:?}", i);
                         self.phase = ProtoPhase::ReceivingState(i);
                     }
 
@@ -1296,7 +1294,6 @@ where
                 }
 
                 if let Some(state_req) = self.cur_message.pop() {
-                    println!("requesting state from {:?} {:?} parts", self.cur_target, state_req.len());
                     let message = StMessage::new(self.curr_seq, MessageKind::ReqState(state_req));
                     self.node.send(message, self.cur_target, false).expect("Failed to send message");
                 }
@@ -1317,8 +1314,6 @@ where
                 };
 
                 drop(message);
-
-                println!("receiving state {:?} {:?}", i, self.cur_message.len());
 
                 let state_seq = state.seq;
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
@@ -1372,9 +1367,8 @@ where
                 if i == targets_len && self.cur_message.is_empty() && self.message_list.is_empty() && self.checkpoint.req_parts.is_empty() {
                     self.phase = ProtoPhase::Init;
                     self.checkpoint.targets.lock().unwrap().clear();
-                    println!("state transfer complete {:?} {:?}", self.cur_message.len(), self.message_list.len());
                 return if self.checkpoint.req_parts.is_empty() {
-                    println!("state transfer complete seq: {:?}", state_seq);
+                    println!("state transfer complete seq: {:?} {:?} {:?} {:?}", state_seq, self.curr_seq, self.largest_cid, self.checkpoint.get_seqno());
                     StStatus::StateComplete(state_seq)
                 } else {
                     // We need to clear the descriptor in order to revert the state of the State transfer protocol to ReqLatestCid,
