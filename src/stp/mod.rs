@@ -727,7 +727,7 @@ where
                         println!("comparing descriptor {:?} to {:?}", descriptor, self.checkpoint.descriptor());
                         if self
                             .checkpoint
-                            .compare_descriptor(&Some(descriptor.clone()))
+                            .compare_descriptor(&Some(descriptor.clone())) || descriptor.get_digest().is_none()
                         {
                             self.checkpoint.update_seqno(self.largest_cid);
                             println!("descriptor is the same, no ST needed");
@@ -1564,6 +1564,12 @@ where
             self.checkpoint.get_seqno(),
             seq_no
         );
+
+        if descriptor.get_digest().is_none() {
+            // Empty descriptor means that there is no state on the checkpoint
+            // even if there are no changes, the descriptor sent should be the same as the previous one
+            self.new_descriptor(None)
+        }
 
         if self.checkpoint.get_seqno() < seq_no {
            // info!("receiving checkpoint {:?}", descriptor.get_digest());
