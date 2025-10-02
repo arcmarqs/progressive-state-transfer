@@ -1224,7 +1224,7 @@ where
                     None => return StStatus::Running,
                 };
                 drop(message);
-                let desc_digest = descriptor.1.get_digest().unwrap();
+                let desc_digest = descriptor.1.get_digest().unwrap_or(Digest::blank());
 
                 if let Some(voters) = self
                     .received_state_ids
