@@ -724,7 +724,7 @@ where
             StStatus::RequestStateDescriptor => self.request_state_descriptor(view),
             StStatus::StateDescriptor(descriptor) => {
                         metric_duration_start(TOTAL_STATE_WAIT_ID);
-                        println!("comparing descriptor {:?} to {:?}". descriptor, self.checkpoint.descriptor());
+                        println!("comparing descriptor {:?} to {:?}", descriptor, self.checkpoint.descriptor());
                         if self
                             .checkpoint
                             .compare_descriptor(&Some(descriptor.clone()))
