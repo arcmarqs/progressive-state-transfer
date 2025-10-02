@@ -910,10 +910,12 @@ where
 
     fn process_request_seq(&mut self, header: Header, message: StMessage<S>) {
         let seq = match self.checkpoint.descriptor() {
-            Some(descriptor) => Some((
+            Some(descriptor) => {
+                Some((
                 self.checkpoint.get_seqno(),
-                descriptor.get_digest().unwrap(),
-            )),
+                descriptor.get_digest().unwrap_or(Digest::blank()),
+            ))}
+,
             None => {
                 // We have received no state updates from the app so we have no descriptor
                 Some((SeqNo::ZERO, Digest::blank()))
