@@ -817,7 +817,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(2);
+        let tp = Pool::new(1);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
         // checkpoint.statistics();
 
@@ -1283,7 +1283,7 @@ where
                     }
 
                     if let Some((node, next_messages)) = self.message_list.pop() {
-                        let vecs = split_evenly(&next_messages, 12)
+                        let vecs = split_evenly(&next_messages, 6)
                             .map(|r| r.to_vec())
                             .collect::<Vec<_>>();
                         self.cur_message = vecs;
