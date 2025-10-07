@@ -381,28 +381,40 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
 
     pub fn get_req_parts_mt(&self, pool: &mut Pool) {
         let desc_parts = self.descriptor_parts();
-        let split = split_evenly(&desc_parts, 4);
+        
+        // Limit the number of parts to process at once to prevent memory overload
+        const MAX_PARTS_PER_BATCH: usize = 3844;
+        
+        let chunks: Vec<&[Arc<S::PartDescription>]> = if desc_parts.len() > MAX_PARTS_PER_BATCH {
+            desc_parts.chunks(MAX_PARTS_PER_BATCH).collect()
+        } else {
+            vec![&desc_parts]
+        };
+        
+        for chunk in chunks {
+            let split = split_evenly(chunk, 4);
 
-        pool.scoped(|scope| {
-            split.for_each(|chunk| {
-                scope.execute(|| {
-                    for part in chunk.iter() {
-                        if let Some(local_part) = self
-                            .read_local_part(part.id())
-                            .expect("failed to read part")
-                        {
-                            if part.content_description() == local_part.hash().as_ref() {
-                                // We've confirmed that this part is valid so we don't need to request it
-                                self.queue_for_install(vec![part.as_ref().clone()]);
-                                continue;
+            pool.scoped(|scope| {
+                split.for_each(|part_slice| {
+                    scope.execute(|| {
+                        for part in part_slice.iter() {
+                            if let Some(local_part) = self
+                                .read_local_part(part.id())
+                                .expect("failed to read part")
+                            {
+                                if part.content_description() == local_part.hash().as_ref() {
+                                    // We've confirmed that this part is valid so we don't need to request it
+                                    self.queue_for_install(vec![part.as_ref().clone()]);
+                                    continue;
+                                }
                             }
-                        }
 
-                        self.req_parts.insert(part.clone(), ());
-                    }
+                            self.req_parts.insert(part.clone(), ());
+                        }
+                    });
                 });
             });
-        });
+        }
     }
 
     pub fn requested_part(&self, part: &S::PartDescription) -> bool {
@@ -1318,21 +1330,20 @@ where
                 let state_seq = state.seq;
                 //   debug!("Node {:?} // Received STATE {:?}", header.from() ,state.st_frag.len());
 
-                let frags = split_evenly(&state.st_frag, 2);
+                let frags = split_evenly(&state.st_frag, 4); // Use more threads for faster processing
 
                 self.threadpool.scoped(|scope| {
-                    // let time = Instant::now();
                     frags.for_each(|frag| {
                         scope.execute(|| {
                             let checkpoint_handle = self.checkpoint.clone();
-                            let mut accepted_descriptor = Vec::new();
+                            let mut accepted_descriptor = Vec::with_capacity(frag.len());
+                            
                             frag.iter().for_each(|received_part| {
-                                //   debug!("received part  {:?}", received_part.descriptor());
-
                                 metric_increment(
                                     TOTAL_STATE_TRANSFERED_ID,
                                     Some(received_part.size()),
                                 );
+                                
                                 if received_part.hash().as_ref()
                                     == received_part.descriptor().content_description()
                                     && checkpoint_handle.requested_part(received_part.descriptor())
@@ -1340,25 +1351,24 @@ where
                                     accepted_descriptor.push(received_part.descriptor().clone());
                                     let _ = checkpoint_handle.write_part(received_part);
                                 }
-
                             });
 
-                            if !checkpoint_handle.req_parts.is_empty() {
-                                //remove the parts that we accepted
+                            // Remove accepted parts from req_parts immediately to free memory
+                            if !checkpoint_handle.req_parts.is_empty() && !accepted_descriptor.is_empty() {
                                 checkpoint_handle
                                     .req_parts
                                     .retain(|part, _| !accepted_descriptor.contains(part));
                             }
-                            self.checkpoint.queue_for_install(accepted_descriptor);
+                            
+                            // Only queue parts if there's space (queue_for_install now has size limits)
+                            if !accepted_descriptor.is_empty() {
+                                checkpoint_handle.queue_for_install(accepted_descriptor);
+                            }
                         });
                     });
-
-                    /*     println!(
-                        "time to validate fragment {:?} number of parts {:?}",
-                        time.elapsed(),
-                        state.st_frag.len()
-                    );*/
                 });
+                
+                // Explicitly drop the state to free memory immediately
                 drop(state);
 
 
@@ -1471,34 +1481,47 @@ where
             panic!("No descriptor while installing state");
         }
 
-        // divide the state in parts, useful if the state is too large to keep in memory
-
-        //descriptor.parts()
-
-        // let start_install = Instant::now();
-
-        let (st_frag, size) = self.checkpoint.get_parts(parts.as_slice()).unwrap();
-        let res = self.install_channel.send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
-        metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
+        // Process in smaller chunks to avoid memory spikes
+        const CHUNK_SIZE: usize = 128; // Reduced from original batch size
+        
+        for chunk in parts.chunks(CHUNK_SIZE) {
+            let (st_frag, size) = self.checkpoint.get_parts(chunk)?;
+            let _res = self.install_channel.send_return(InstallStateMessage::StatePart(MaybeVec::from_many(st_frag)));
+            
+            // Immediately remove processed parts from req_parts to free memory
+            for part in chunk {
+                self.checkpoint.req_parts.remove(&Arc::new(part.clone()));
+            }
+            
+            metric_increment(TOTAL_STATE_INSTALLED_ID, Some(size));
+        }
 
         Ok(STResult::StateTransferReady)
     }
 
     fn finish_install_state(&mut self) -> Result<STResult> {
-
         println!("finished state transfer parts left {:?} {:?} {:?}", self.cur_message.len(), self.message_list.len(), self.checkpoint.ready_to_install.lock().unwrap().len());
 
-         self.install_channel
+        self.install_channel
             .send(InstallStateMessage::Done)
             .unwrap();
 
         self.checkpoint.update_seqno(self.largest_cid);
+        
+        // Clean up all collections to free memory
         self.received_state_ids.clear();
+        self.message_list.clear();
+        self.cur_message.clear();
+        self.checkpoint.req_parts.clear();
+        
+        // Clear ready_to_install queue
+        if let Ok(mut ready_queue) = self.checkpoint.ready_to_install.lock() {
+            ready_queue.clear();
+        }
 
-        // metric_duration(
-        //     STATE_TRANSFER_STATE_INSTALL_CLONE_TIME_ID,
-        //     start_install.elapsed(),
-        // );
+        // Compact the persistent storage
+        let _ = self.checkpoint.parts.compact_range(STATE, Some(&[] as &[u8]), Some(&[] as &[u8]));
+
         metric_duration_end(STATE_TRANSFER_TIME_ID);
 
         println!(
@@ -1605,6 +1628,9 @@ where
             );
             self.checkpoint.update_seqno(seq_no);
             self.checkpoint.update_descriptor(Some(desc));
+            
+            let _ = self.checkpoint.parts.compact_range(STATE, Some(&[] as &[u8]), Some(&[] as &[u8]));
+            
         }
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
