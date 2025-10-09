@@ -206,20 +206,14 @@ impl<S: DivisibleState> PersistentCheckpoint<S> {
     }
 
     fn write_parts(&self, parts: Vec<S::StatePart>) -> Result<()> {
-        let batch = parts
-            .iter()
-            .map(|part| (part.id(), bincode::serialize(part).unwrap()));
-
-        let _ = self.parts.set_all(STATE, batch);
-
-        /*  for part in parts.iter() {
-                debug!("writing part {:?}", part.size());
-               let res = self.parts.set(STATE, part.id(), bincode::serialize(part).unwrap());
-
-               if res.is_err() {
-                debug!("ERROR WRITING PARTS {:?}", res.unwrap_err());
-               }
-        }*/
+        // Stream writes one-by-one to avoid holding all serialized buffers in memory.
+        // Use into_iter so each part is dropped immediately after being written.
+        for part in parts.into_iter() {
+            let bytes = bincode::serialize(&part).expect("failed to serialize part");
+            let _ = self
+                .parts
+                .set(STATE, part.id(), bytes);
+        }
         Ok(())
     }
 
