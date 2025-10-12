@@ -1514,7 +1514,7 @@ where
         }
 
         // Compact the persistent storage
-        let _ = self.checkpoint.parts.compact_range(STATE, Some(&[] as &[u8]), Some(&[] as &[u8]));
+        // let _ = self.checkpoint.parts.compact_range(STATE, Some(&[] as &[u8]), Some(&[] as &[u8]));
 
         metric_duration_end(STATE_TRANSFER_TIME_ID);
 
@@ -1621,10 +1621,7 @@ where
                 seq_no
             );
             self.checkpoint.update_seqno(seq_no);
-            self.checkpoint.update_descriptor(Some(desc));
-            
-            let _ = self.checkpoint.parts.compact_range(STATE, Some(&[] as &[u8]), Some(&[] as &[u8]));
-            
+            self.checkpoint.update_descriptor(Some(desc));            
         }
 
         metric_duration_end(CHECKPOINT_UPDATE_TIME_ID);
