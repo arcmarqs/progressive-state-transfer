@@ -698,7 +698,11 @@ where
             .received_cst_request(header.from(), message.sequence_number());
 
         let status = self.process_message_inner(view.clone(), StProgress::Message(header, message));
-
+        println!(
+            "{:?} // State transfer process message result: {:?}",
+            self.node.id(),
+            status
+        );
         match status {
             StStatus::Nil => (),
             StStatus::Running => (),
@@ -823,7 +827,7 @@ where
         install_channel: ChannelSyncTx<InstallStateMessage<S>>,
     ) -> Self {
         let id = node.id();
-        let tp = Pool::new(2);
+        let tp = Pool::new(4);
         let checkpoint = Arc::new(PersistentCheckpoint::new(id));
         // checkpoint.statistics();
 
