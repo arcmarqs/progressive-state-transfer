@@ -1371,8 +1371,8 @@ where
 
 
                 self.curr_timeout = self.base_timeout;
-
-                if i == targets_len && self.cur_message.is_empty() && self.message_list.is_empty() && self.checkpoint.req_parts.is_empty() {
+                println!("Received current i: {:?} targets: {:?} cur_message: {:?} message list: {:?} req_parts {:?}", i, targets_len, self.cur_message.len(), self.message_list.len(), self.checkpoint.req_parts.len());
+            if i == targets_len && self.cur_message.is_empty() && self.message_list.is_empty() && self.checkpoint.req_parts.is_empty() {
                     self.phase = ProtoPhase::Init;
                     self.checkpoint.targets.lock().unwrap().clear();
                 return if self.checkpoint.req_parts.is_empty() {
